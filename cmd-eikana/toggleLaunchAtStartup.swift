@@ -26,16 +26,17 @@ func shouldReregisterLaunchAtStartup(
   return launchAtStartupEnabled
 }
 
+/// 本体自身をログイン項目に登録、または登録を解除する（macOS 13 以降の SMAppService.mainApp）
 func setLaunchAtStartup(_ enabled: Bool) {
-  let appBundleIdentifier = "io.github.dominion525.cmd-eikana-helper"
-
-  if SMLoginItemSetEnabled(appBundleIdentifier as CFString, enabled) {
+  do {
     if enabled {
+      try SMAppService.mainApp.register()
       print("Successfully add login item.")
     } else {
+      try SMAppService.mainApp.unregister()
       print("Successfully remove login item.")
     }
-  } else {
-    print("Failed to add login item.")
+  } catch {
+    print("Failed to \(enabled ? "add" : "remove") login item: \(error)")
   }
 }
