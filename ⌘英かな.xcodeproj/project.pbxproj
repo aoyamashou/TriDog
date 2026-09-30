@@ -71,6 +71,7 @@
 		620F5D681EA45B3300942FCC /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Main.strings; sourceTree = "<group>"; };
 		7A9C0A012F3B4C5D6E7F0030 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Main.strings"; sourceTree = "<group>"; };
 		7A9C0A012F3B4C5D6E7F0031 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Main.strings"; sourceTree = "<group>"; };
+		7A9C0A012F3B4C5D6E7F0032 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/Main.strings; sourceTree = "<group>"; };
 		623E2E061DA60DA800AF163C /* PreferenceWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreferenceWindowController.swift; sourceTree = "<group>"; };
 		6242D4BB1DA2455D00CA80DD /* KeyboardShortcut.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeyboardShortcut.swift; sourceTree = "<group>"; };
 		6242D4BD1DA395AC00CA80DD /* KeyTextField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeyTextField.swift; sourceTree = "<group>"; };
@@ -300,6 +301,7 @@
 				ja,
 				"zh-Hant",
 				"zh-Hans",
+				ko,
 			);
 			mainGroup = 6294280E1D387503001BD4E9;
 			packageReferences = (
@@ -413,6 +415,7 @@
 				620F5D681EA45B3300942FCC /* ja */,
 				7A9C0A012F3B4C5D6E7F0030 /* zh-Hant */,
 				7A9C0A012F3B4C5D6E7F0031 /* zh-Hans */,
+				7A9C0A012F3B4C5D6E7F0032 /* ko */,
 			);
 			name = Main.storyboard;
 			sourceTree = "<group>";
