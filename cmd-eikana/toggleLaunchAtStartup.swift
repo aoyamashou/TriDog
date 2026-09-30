@@ -26,6 +26,15 @@ func shouldReregisterLaunchAtStartup(
   return launchAtStartupEnabled
 }
 
+/// 2.5.x まで使っていた旧方式（ヘルパー経由の SMLoginItemSetEnabled）の登録を無効にする。
+/// 旧方式の登録を無効にする手段はこの API しかないため、非推奨と承知で使っている（ビルド時に警告が出る）。
+/// ヘルパーがバンドルに同梱されている間しか効かないので、ヘルパーを削除するときにこの関数も消す
+func disableLegacyHelperLoginItem() {
+  if !SMLoginItemSetEnabled("io.github.dominion525.cmd-eikana-helper" as CFString, false) {
+    print("Failed to disable legacy helper login item.")
+  }
+}
+
 /// 本体自身をログイン項目に登録、または登録を解除する（macOS 13 以降の SMAppService.mainApp）
 func setLaunchAtStartup(_ enabled: Bool) {
   do {

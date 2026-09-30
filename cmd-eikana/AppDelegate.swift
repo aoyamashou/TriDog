@@ -31,6 +31,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     let userDefaults = UserDefaults.standard
 
+    // 旧方式の登録は自動起動のオン・オフに関係なく残っていることがあるので、起動のたびに無効にする
+    disableLegacyHelperLoginItem()
+
     // 「ログイン後にこのアプリを起動」。初回起動は既定でオンにして保存する
     let launchAtStartup = StartupSettings.launchAtStartup(
       saved: userDefaults.object(forKey: "lunchAtStartup"))
