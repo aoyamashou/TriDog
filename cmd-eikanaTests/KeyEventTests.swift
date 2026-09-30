@@ -270,4 +270,15 @@ struct KeyEventTests {
     let harness = Harness(mappings: [])
     #expect(harness.handle(type, keyEvent(0, down: true)) == nil)
   }
+
+  // 無効化されている間の操作（⌘+C など）はタップに届かない。無効化の知らせを「間に操作があったかもしれない」合図として扱い、
+  // 修飾キーを離しても単体押しにしない
+  @Test(arguments: [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput])
+  func tapDisabledWhileModifierHeldCancelsTap(type: CGEventType) {
+    let harness = Harness(mappings: [mapping(input: 55, output: 102)])
+    _ = harness.handle(.flagsChanged, flagsChanged(55, flags: Self.command))
+    _ = harness.handle(type, keyEvent(0, down: true))
+    _ = harness.handle(.flagsChanged, flagsChanged(55, flags: []))
+    #expect(harness.postedShortcuts.isEmpty)
+  }
 }

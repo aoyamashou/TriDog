@@ -182,6 +182,8 @@ class KeyEvent: NSObject {
   func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
     // タイムアウト等でシステムに無効化されたイベントタップを再有効化する
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+      // 無効化されている間の操作（⌘+C など）は届かないので、修飾キー単体押しの追跡を取り消す
+      modifierTap.cancel()
       if let eventTap = self.eventTap {
         CGEvent.tapEnable(tap: eventTap, enable: true)
       }
