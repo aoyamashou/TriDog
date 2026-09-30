@@ -26,6 +26,11 @@ func shouldReregisterLaunchAtStartup(
   return launchAtStartupEnabled
 }
 
+/// 自動起動が登録されているとみなす状態か。requiresApproval は登録済みで利用者の許可待ちなので、登録済みとして扱う
+func isLaunchAtStartupRegistered(_ status: SMAppService.Status) -> Bool {
+  status == .enabled || status == .requiresApproval
+}
+
 /// 2.5.x まで使っていた旧方式（ヘルパー経由の SMLoginItemSetEnabled）の登録を無効にする。
 /// 旧方式の登録を無効にする手段はこの API しかないため、非推奨と承知で使っている（ビルド時に警告が出る）。
 /// ヘルパーがバンドルに同梱されている間しか効かないので、ヘルパーを削除するときにこの関数も消す

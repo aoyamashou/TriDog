@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import ServiceManagement
 import Sparkle
 
 class ViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
@@ -14,6 +15,12 @@ class ViewController: NSViewController, NSTableViewDataSource, NSTableViewDelega
   var userDefaults = UserDefaults.standard
   /// メニューバー項目の表示を切り替える。AppKit がその状態をアプリの設定に保存するので、テストでは記録するだけの関数に差し替える
   var setStatusItemVisible: (Bool) -> Void = { statusItem.isVisible = $0 }
+  /// 自動起動が OS に登録されているか。登録状態は OS が持っているので、テストでは決まった値を返す関数に差し替える
+  var launchAtStartupRegistered: () -> Bool = {
+    isLaunchAtStartupRegistered(SMAppService.mainApp.status)
+  }
+  /// 自動起動を OS に登録・解除する。OS のログイン項目を変えるので、テストでは記録するだけの関数に差し替える
+  var registerLaunchAtStartup: (Bool) -> Void = { setLaunchAtStartup($0) }
 
   @IBOutlet weak var showIcon: NSButton!
   @IBOutlet weak var lunchAtStartup: NSButton!
@@ -31,10 +38,26 @@ class ViewController: NSViewController, NSTableViewDataSource, NSTableViewDelega
     let showIconState = userDefaults.object(forKey: "showIcon") as? Int ?? 1
     showIcon.state = NSControl.StateValue(rawValue: showIconState)
 
-    lunchAtStartup.state = NSControl.StateValue(
-      rawValue: userDefaults.integer(forKey: "lunchAtStartup"))
-
     checkUpdateAtlaunch.state = updater.automaticallyChecksForUpdates ? .on : .off
+
+    // 設定画面を開いたままシステム設定で変えられた場合も、こちらに戻ってきたときに読み直す
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(applicationDidBecomeActive(_:)),
+      name: NSApplication.didBecomeActiveNotification, object: nil)
+  }
+
+  override func viewWillAppear() {
+    super.viewWillAppear()
+    // システム設定の側で外されることもあるので、表示のたびに OS の登録状態を読む
+    reflectLaunchAtStartup()
+  }
+
+  @objc private func applicationDidBecomeActive(_ notification: Notification) {
+    reflectLaunchAtStartup()
+  }
+
+  private func reflectLaunchAtStartup() {
+    lunchAtStartup.state = launchAtStartupRegistered() ? .on : .off
   }
 
   @IBAction func clickShowIcon(_ sender: AnyObject) {
@@ -42,8 +65,10 @@ class ViewController: NSViewController, NSTableViewDataSource, NSTableViewDelega
     userDefaults.set(showIcon.state, forKey: "showIcon")
   }
   @IBAction func clickLunchAtStartup(_ sender: AnyObject) {
-    setLaunchAtStartup(lunchAtStartup.state == NSControl.StateValue.on)
+    registerLaunchAtStartup(lunchAtStartup.state == NSControl.StateValue.on)
     userDefaults.set(lunchAtStartup.state, forKey: "lunchAtStartup")
+    // 登録に失敗したときにチェックだけが残らないよう、実際の登録状態を表示し直す
+    reflectLaunchAtStartup()
   }
   @IBAction func clickCheckUpdateAtlaunch(_ sender: AnyObject) {
     updater.automaticallyChecksForUpdates = (checkUpdateAtlaunch.state == .on)
