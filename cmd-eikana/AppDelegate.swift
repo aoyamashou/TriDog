@@ -42,7 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       userDefaults.set(1, forKey: "lunchAtStartup")
     }
 
-    // バージョンアップ時に自動起動設定を再登録（バンドルID変更対応）
+    // 旧方式（2.6.0 より前）からの更新時に、自動起動を新方式で登録し直す
     let lastVersion = userDefaults.string(forKey: "lastLaunchVersion")
     let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
     if shouldReregisterLaunchAtStartup(

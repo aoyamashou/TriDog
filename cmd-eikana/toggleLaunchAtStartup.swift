@@ -11,9 +11,14 @@
 import Cocoa
 import ServiceManagement
 
-/// バージョンアップ時に自動起動設定を再登録すべきか判定する
+/// 自動起動を SMAppService.mainApp で登録するようになった最初のバージョン。これより前は旧方式（ヘルパー経由）
+let firstMainAppLoginItemVersion = "2.6.0"
+
+/// バージョンアップ時に自動起動設定を再登録すべきか判定する。
+/// 旧方式から新方式へ移るときの 1 回だけ登録し、それ以降の更新では登録し直さない
+/// （システム設定で外した利用者を、更新のたびに登録し直さないため）
 /// - Parameters:
-///   - lastVersion: 前回起動時のバージョン（初回起動時はnil）
+///   - lastVersion: 前回起動時のバージョン（記録が無いときはnil。2.4.0 以前からの更新か初回起動）
 ///   - currentVersion: 現在のバージョン
 ///   - launchAtStartupEnabled: 自動起動設定がオンか
 /// - Returns: 再登録すべきならtrue
@@ -23,6 +28,11 @@ func shouldReregisterLaunchAtStartup(
   launchAtStartupEnabled: Bool
 ) -> Bool {
   guard lastVersion != currentVersion else { return false }
+  if let lastVersion,
+    lastVersion.compare(firstMainAppLoginItemVersion, options: .numeric) != .orderedAscending
+  {
+    return false
+  }
   return launchAtStartupEnabled
 }
 
