@@ -71,6 +71,11 @@ enum StartupSettings {
     return value == 1
   }
 
+  /// テストのホストとして起動されたか。Xcode はテストを走らせるアプリに XCTestConfigurationFilePath を渡す
+  static func isRunningAsTestHost(environment: [String: String]) -> Bool {
+    environment["XCTestConfigurationFilePath"] != nil
+  }
+
   /// "exclusionApps" の保存値から除外アプリの一覧を復元する。形式が合わない項目は捨て、配列でなければ空
   static func exclusionApps(from saved: Any?) -> [AppData] {
     guard let entries = saved as? [[AnyHashable: Any]] else {
