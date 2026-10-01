@@ -36,6 +36,46 @@ func shouldReregisterLaunchAtStartup(
   return launchAtStartupEnabled
 }
 
+/// 起動時の自動起動の処理。順番が結果を左右するので、ここにまとめる。
+/// 1. 旧方式の登録を無効にする 2. 初回起動なら既定でオンにして登録する 3. 前回の版を読み、旧方式（2.6.0 より前）からの更新なら
+/// 新方式で登録し直す 4. 登録できなかった移行では前回の版を記録せず、次の起動でやり直す。
+/// 保存先と OS に触る処理は引数で受け取る（テストでは差し替える）
+func prepareLaunchAtStartupOnLaunch(
+  defaults: UserDefaults,
+  currentVersion: String?,
+  disableLegacyHelper: () -> Void = disableLegacyHelperLoginItem,
+  register: (Bool) -> Void = setLaunchAtStartup,
+  isRegistered: () -> Bool = launchAtStartupIsRegistered
+) {
+  // 旧方式の登録は自動起動のオン・オフに関係なく残っていることがあるので、起動のたびに無効にする
+  disableLegacyHelper()
+
+  // 「ログイン後にこのアプリを起動」。初回起動は既定でオンにして保存する
+  let launchAtStartup = StartupSettings.launchAtStartup(
+    saved: defaults.object(forKey: "lunchAtStartup"))
+  if launchAtStartup.isFirstLaunch {
+    register(true)
+    defaults.set(1, forKey: "lunchAtStartup")
+  }
+
+  // 旧方式（2.6.0 より前）からの更新時に、自動起動を新方式で登録し直す
+  let lastVersion = defaults.string(forKey: "lastLaunchVersion")
+  let reregistered = shouldReregisterLaunchAtStartup(
+    lastVersion: lastVersion,
+    currentVersion: currentVersion,
+    launchAtStartupEnabled: launchAtStartup.enabled
+  )
+  if reregistered {
+    register(true)
+  }
+  // 登録に失敗していたら版を記録せず、次の起動で移行をやり直す
+  if shouldRecordLaunchVersion(
+    reregistered: reregistered, registeredAfterward: reregistered && isRegistered())
+  {
+    defaults.set(currentVersion, forKey: "lastLaunchVersion")
+  }
+}
+
 /// 起動時に今回の版を「前回起動した版」として記録してよいか。
 /// 移行の再登録をしたのに登録済みになっていなければ記録せず、次の起動でもう一度「移行」と判定させてやり直す
 func shouldRecordLaunchVersion(reregistered: Bool, registeredAfterward: Bool) -> Bool {
