@@ -117,7 +117,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       withTitle: "Restart", action: #selector(AppDelegate.restart(_:)), keyEquivalent: "")
     menu.addItem(withTitle: "Quit", action: #selector(AppDelegate.quit(_:)), keyEquivalent: "")
 
-    keyEvent.start()
+    // テストのホストとして起動されたときは、権限の確認（ダイアログ）とキーの見張りを始めない。
+    // テストのビルドは毎回別のアプリとして扱われ、起動のたびにアクセシビリティのダイアログが出てしまう。テストはキー処理を直接呼ぶので見張りは要らない
+    if !StartupSettings.isRunningAsTestHost(environment: ProcessInfo.processInfo.environment) {
+      keyEvent.start()
+    }
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {

@@ -76,6 +76,20 @@ struct StartupSettingsTests {
     #expect(StartupSettings.legacyAutomaticUpdateCheck(saved: 1.0) == nil)
   }
 
+  // MARK: - テストのホストとしての起動
+
+  @Test func testHostIsDetectedFromTheXCTestEnvironment() {
+    #expect(
+      StartupSettings.isRunningAsTestHost(environment: ["XCTestConfigurationFilePath": "/tmp/x"]))
+    #expect(StartupSettings.isRunningAsTestHost(environment: [:]) == false)
+  }
+
+  // このテスト自体がテストのホストの中で動いているので、本物の環境変数でも判定されることを確かめる。
+  // 判定できていないと、テストのたびにアクセシビリティのダイアログが出る
+  @Test func thisTestRunIsDetectedAsTestHost() {
+    #expect(StartupSettings.isRunningAsTestHost(environment: ProcessInfo.processInfo.environment))
+  }
+
   // MARK: - 除外アプリ
 
   @Test func exclusionAppsFromNilIsEmpty() {
