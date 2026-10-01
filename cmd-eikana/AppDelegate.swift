@@ -45,14 +45,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // 旧方式（2.6.0 より前）からの更新時に、自動起動を新方式で登録し直す
     let lastVersion = userDefaults.string(forKey: "lastLaunchVersion")
     let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-    if shouldReregisterLaunchAtStartup(
+    let reregistered = shouldReregisterLaunchAtStartup(
       lastVersion: lastVersion,
       currentVersion: currentVersion,
       launchAtStartupEnabled: launchAtStartup.enabled
-    ) {
+    )
+    if reregistered {
       setLaunchAtStartup(true)
     }
-    userDefaults.set(currentVersion, forKey: "lastLaunchVersion")
+    // 登録に失敗していたら版を記録せず、次の起動で移行をやり直す
+    if shouldRecordLaunchVersion(
+      reregistered: reregistered, registeredAfterward: reregistered && launchAtStartupIsRegistered())
+    {
+      userDefaults.set(currentVersion, forKey: "lastLaunchVersion")
+    }
 
     // 旧設定「起動時にアップデートを確認」を Sparkle の自動確認設定へ引き継ぐ（キーを消すので 1 度だけ走る）
     if let automaticallyChecks = StartupSettings.legacyAutomaticUpdateCheck(

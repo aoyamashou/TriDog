@@ -36,9 +36,20 @@ func shouldReregisterLaunchAtStartup(
   return launchAtStartupEnabled
 }
 
+/// 起動時に今回の版を「前回起動した版」として記録してよいか。
+/// 移行の再登録をしたのに登録済みになっていなければ記録せず、次の起動でもう一度「移行」と判定させてやり直す
+func shouldRecordLaunchVersion(reregistered: Bool, registeredAfterward: Bool) -> Bool {
+  !reregistered || registeredAfterward
+}
+
 /// 自動起動が登録されているとみなす状態か。requiresApproval は登録済みで利用者の許可待ちなので、登録済みとして扱う
 func isLaunchAtStartupRegistered(_ status: SMAppService.Status) -> Bool {
   status == .enabled || status == .requiresApproval
+}
+
+/// 本体自身がログイン項目に登録されているか（OS の登録状態を読む）
+func launchAtStartupIsRegistered() -> Bool {
+  isLaunchAtStartupRegistered(SMAppService.mainApp.status)
 }
 
 /// 2.5.x まで使っていた旧方式（ヘルパー経由の SMLoginItemSetEnabled）の登録を無効にする。
