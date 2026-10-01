@@ -169,7 +169,9 @@ struct KeyEventTests {
     #expect(harness.postedShortcuts.isEmpty)
   }
 
-  @Test func otherEventWhileModifierHeldCancelsTap() {
+  // handle の default 分岐（キー・修飾キー・メディアキー以外の種類）が単体押しを取り消すことを確かめる。
+  // 製品のタップはマウスのイベントを受け取らず、マウス操作での取り消しは KeyEvent.start の NSEvent の監視が担う（ここでは確かめない）
+  @Test func unhandledEventTypeWhileModifierHeldCancelsTap() {
     let harness = Harness(mappings: [mapping(input: 55, output: 102)])
     _ = harness.handle(.flagsChanged, flagsChanged(55, flags: Self.command))
     _ = harness.handle(.leftMouseDown, keyEvent(0, down: true))
