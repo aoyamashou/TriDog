@@ -35,8 +35,7 @@ class ViewController: NSViewController, NSTableViewDataSource, NSTableViewDelega
     super.viewDidLoad()
     // Do any additional setup after loading the view.
 
-    let showIconState = userDefaults.object(forKey: "showIcon") as? Int ?? 1
-    showIcon.state = NSControl.StateValue(rawValue: showIconState)
+    reflectSavedShowIcon()
 
     checkUpdateAtlaunch.state = updater.automaticallyChecksForUpdates ? .on : .off
 
@@ -44,6 +43,12 @@ class ViewController: NSViewController, NSTableViewDataSource, NSTableViewDelega
     NotificationCenter.default.addObserver(
       self, selector: #selector(applicationDidBecomeActive(_:)),
       name: NSApplication.didBecomeActiveNotification, object: nil)
+  }
+
+  /// 「メニューバーにアイコンを表示」の保存値をチェックに反映する。保存値が無ければ表示（オン）
+  func reflectSavedShowIcon() {
+    let showIconState = userDefaults.object(forKey: "showIcon") as? Int ?? 1
+    showIcon.state = NSControl.StateValue(rawValue: showIconState)
   }
 
   override func viewWillAppear() {

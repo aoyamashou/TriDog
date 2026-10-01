@@ -91,6 +91,21 @@ struct LaunchAtStartupMigrationTests {
     #expect(result == false)
   }
 
+  // 移行の再登録をしなかった起動では、版をそのまま記録する
+  @Test func launchVersionIsRecordedWhenNotReregistering() {
+    #expect(shouldRecordLaunchVersion(reregistered: false, registeredAfterward: false) == true)
+  }
+
+  // 移行の再登録をして登録済みになったら、版を記録する（以後は移行と判定されない）
+  @Test func launchVersionIsRecordedWhenReregistrationSucceeded() {
+    #expect(shouldRecordLaunchVersion(reregistered: true, registeredAfterward: true) == true)
+  }
+
+  // 移行の再登録をしたのに登録済みになっていなければ、版を記録せず次の起動でやり直す
+  @Test func launchVersionIsNotRecordedWhenReregistrationFailed() {
+    #expect(shouldRecordLaunchVersion(reregistered: true, registeredAfterward: false) == false)
+  }
+
   // 両方nilの場合（エッジケース）は再登録しない
   @Test func bothNilShouldNotReregister() {
     let result = shouldReregisterLaunchAtStartup(
