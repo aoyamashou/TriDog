@@ -31,6 +31,13 @@ class KeyEvent: NSObject {
     keyDownEvent.post(tap: CGEventTapLocation.cghidEventTap)
   }
 
+  /// システムに無効化されたイベントタップを再有効化する。テストではタップを持たないので、記録するだけの関数に差し替える
+  var reenableTap: (CFMachPort?) -> Void = { eventTap in
+    if let eventTap {
+      CGEvent.tapEnable(tap: eventTap, enable: true)
+    }
+  }
+
   override init() {
     super.init()
   }
@@ -184,9 +191,7 @@ class KeyEvent: NSObject {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       // 無効化されている間の操作（⌘+C など）は届かないので、修飾キー単体押しの追跡を取り消す
       modifierTap.cancel()
-      if let eventTap = self.eventTap {
-        CGEvent.tapEnable(tap: eventTap, enable: true)
-      }
+      reenableTap(eventTap)
       return nil
     }
 

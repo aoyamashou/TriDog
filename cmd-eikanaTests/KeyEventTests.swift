@@ -23,12 +23,14 @@ struct KeyEventTests {
     let keyEvent = KeyEvent()
     var postedShortcuts: [KeyboardShortcut] = []
     var postedKeyDowns: [(keyCode: CGKeyCode, flags: CGEventFlags)] = []
+    var reenableTapCount = 0
 
     init(mappings: [KeyMapping]) {
       let table = KeyMappingListEditor.shortcutTable(from: mappings)
       keyEvent.shortcutTable = { table }
       keyEvent.postShortcut = { [unowned self] in self.postedShortcuts.append($0) }
       keyEvent.postKeyDown = { [unowned self] in self.postedKeyDowns.append(($0, $1)) }
+      keyEvent.reenableTap = { [unowned self] _ in self.reenableTapCount += 1 }
     }
 
     func handle(_ type: CGEventType, _ event: CGEvent) -> CGEvent? {
@@ -269,6 +271,21 @@ struct KeyEventTests {
   func tapDisabledNotificationIsSwallowed(type: CGEventType) {
     let harness = Harness(mappings: [])
     #expect(harness.handle(type, keyEvent(0, down: true)) == nil)
+  }
+
+  // 再有効化しないと、一度無効化された時点からアプリを再起動するまで変換が止まる
+  @Test(arguments: [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput])
+  func tapDisabledNotificationReenablesTheTap(type: CGEventType) {
+    let harness = Harness(mappings: [])
+    _ = harness.handle(type, keyEvent(0, down: true))
+    #expect(harness.reenableTapCount == 1)
+  }
+
+  @Test func ordinaryEventsDoNotReenableTheTap() {
+    let harness = Harness(mappings: [mapping(input: 0, output: 1)])
+    _ = harness.handle(.keyDown, keyEvent(0, down: true))
+    _ = harness.handle(.flagsChanged, flagsChanged(55, flags: Self.command))
+    #expect(harness.reenableTapCount == 0)
   }
 
   // 無効化されている間の操作（⌘+C など）はタップに届かない。無効化の知らせを「間に操作があったかもしれない」合図として扱い、
