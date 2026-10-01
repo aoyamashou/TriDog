@@ -1,91 +1,30 @@
-# ⌘英かな (cmd-eikana) - Apple Silicon Fork
+# ImeSwitch（自用）
 
-![Build](https://github.com/dominion525/cmd-eikana/actions/workflows/build.yml/badge.svg)
-![License](https://img.shields.io/github/license/dominion525/cmd-eikana)
-![Platform](https://img.shields.io/badge/platform-macOS%2013.0%2B-blue)
+基于 [⌘英かな](https://github.com/iMasanari/cmd-eikana) 精简而来。单击修饰键直接切换到指定输入法：
 
-This is a fork of [iMasanari/cmd-eikana](https://github.com/iMasanari/cmd-eikana) for Apple Silicon Macs.
+| 单击 | 切换到 |
+|---|---|
+| 左 ⌘ | 清歌输入法 |
+| 右 ⌘ | 日语（罗马字） |
+| 右 ⇧ | ABC |
 
-左右のコマンドキーを単体で押した時に英数/かなを切り替えるアプリです。
-設定をいじることでキーリマップアプリとしても利用できます。
+映射和切换方式都写在 `Sources/main.swift` 顶部的 `targets` 里。
 
-## Fork版について
-
-このリポジトリは [iMasanari](https://github.com/iMasanari) 氏による [オリジナル版](https://github.com/iMasanari/cmd-eikana) のフォークです。
-
-### オリジナル版との違い
-- Apple Silicon (arm64) 専用ビルド
-- 最小動作要件: macOS 13.0 (Ventura) 以降
-- Bundle ID: `io.github.dominion525.cmd-eikana`
-
-## ダウンロード
-
-[GitHub Releases](https://github.com/dominion525/cmd-eikana/releases) からダウンロードしてください。
-
-Homebrew からも入れられます。
-
-```
-brew install --cask dominion525/tap/cmd-eikana
-```
-
-## アップデート
-
-アプリ内で新しいバージョンの確認・ダウンロード・適用を行います（[Sparkle](https://sparkle-project.org) を使用）。
-
-- 既定では自動的に確認し、新しいバージョンがあればダイアログで案内します
-- 自動確認は設定画面の「アップデートを自動的に確認」で切り替えられます
-- 設定画面の「確認する」ボタンでいつでも手動で確認できます
-
-v2.4.2 以前のバージョンにはこの仕組みが入っていないため、一度 [GitHub Releases](https://github.com/dominion525/cmd-eikana/releases) からダウンロードして入れ替えてください。以降はアプリ内でアップデートできます。
-
-## 使い方（初回起動時）
-
-### 1. アプリを開く
-
-[Releases](https://github.com/dominion525/cmd-eikana/releases) からダウンロードしたアプリは署名・公証済みのため、ダブルクリックで開けます。
-
-### 2. アクセシビリティの許可
-
-アクセシビリティ機能へのアクセスの確認ダイアログが表示されるので「"システム設定"を開く」をクリックします。
-プライバシーとセキュリティ > アクセシビリティ で⌘英かな.appにチェックを入れてください。
-
-## オリジナル版からの移行
-
-オリジナル版（iMasanari/cmd-eikana）から移行する場合、Bundle IDが異なるためアクセシビリティの設定が競合することがあります。
-
-1. オリジナル版の⌘英かなを終了
-2. システム設定 →「プライバシーとセキュリティ」→「アクセシビリティ」を開く
-3. 古い⌘英かなのエントリを削除（-ボタン）
-4. 本フォーク版を起動し、新しくアクセシビリティを許可
-
-## 終了方法
-
-右上のステータスバーにある「⌘」アイコンを開き、「Quit」を選びます。
-
-## アンインストール方法
-
-⌘英かな.appをゴミ箱に入れてください。
-また、設定ファイルが`~/Library/Preferences/io.github.dominion525.cmd-eikana.plist`にあります。
-綺麗さっぱり消したいという場合はこちらもゴミ箱に入れてください。
-
-## 動作確認環境
-
-- macOS 15.7 Sequoia (Apple Silicon)
-
-## ビルド方法
+## 构建与使用
 
 ```bash
-xcodebuild -project "⌘英かな.xcodeproj" -scheme "⌘英かな" \
-  -configuration Release -arch arm64 clean build
+./build.sh
+open build/ImeSwitch.app
 ```
 
-**注意:** ソースからビルドした場合は開発署名となるため、初回起動時にGatekeeperによってブロックされます。右クリック（またはControl+クリック）→「開く」で起動してください。
+首次运行需要在「系统设置 → 隐私与安全性 → 输入监控」里允许 ImeSwitch。每次重新构建后可能要重新勾选。
+退出：点菜单栏的「⌘」→ Quit。
 
-## Credits
+## 中日韩输入法切换不生效的问题
 
-- Original Author: [iMasanari](https://github.com/iMasanari)
-- Fork Maintainer: [dominion525](https://github.com/dominion525)
+用 TIS 接口切到中日韩输入法后，当前应用偶尔还在用旧的输入法。`Strategy` 提供了几种处理方式：
 
-## ライセンス
-
-MIT License - Copyright (c) 2016 iMasanari
+- `.refocus`（默认）：切换后让焦点离开一下再回来，强制当前应用重新读取输入法。
+- `.reselect`：50ms 后再选一次。
+- `.kanaKey`：仅用于日语，改为发送かな键（需要「辅助功能」权限）。
+- `.plain`：只调用 TIS，适合 ABC 这类键盘布局。
