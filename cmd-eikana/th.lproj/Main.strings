@@ -1,0 +1,39 @@
+
+/* Class = "NSTabViewItem"; label = "Key Remap"; ObjectID = "14e-rg-kjk"; */
+"14e-rg-kjk.title" = "กำหนดปุ่มใหม่";
+
+/* Class = "NSButtonCell"; title = "check update"; ObjectID = "4Dh-kS-y64"; */
+"4Dh-kS-y64.title" = "ตรวจสอบตอนนี้";
+
+/* Class = "NSMenuItem"; title = "remove"; ObjectID = "502-f2-l6k"; */
+"502-f2-l6k.title" = "ลบรายการนี้";
+
+/* Class = "NSTabViewItem"; label = "Exclusion Apps"; ObjectID = "5BL-ga-t3Q"; */
+"5BL-ga-t3Q.title" = "แอปที่ยกเว้น";
+
+/* Class = "NSMenuItem"; title = "move one up"; ObjectID = "5K6-xN-Jic"; */
+"5K6-xN-Jic.title" = "เลื่อนขึ้นหนึ่งรายการ";
+
+/* Class = "NSButtonCell"; title = "check for updates automatically"; ObjectID = "6Pk-W2-evg"; */
+"6Pk-W2-evg.title" = "ตรวจอัปเดตอัตโนมัติ";
+
+/* Class = "NSMenuItem"; title = "move to bottom"; ObjectID = "EUh-qz-H2g"; */
+"EUh-qz-H2g.title" = "ย้ายไปล่างสุด";
+
+/* Class = "NSMenuItem"; title = "move to the top"; ObjectID = "SPl-n7-KTj"; */
+"SPl-n7-KTj.title" = "ย้ายไปบนสุด";
+
+/* Class = "NSButtonCell"; title = "show icon on menu bar"; ObjectID = "Swa-9Q-bjA"; */
+"Swa-9Q-bjA.title" = "แสดงไอคอนในแถบเมนู";
+
+/* Class = "NSButtonCell"; title = "start with system login"; ObjectID = "UJa-91-PJq"; */
+"UJa-91-PJq.title" = "เปิดแอปนี้หลังจากเข้าสู่ระบบ";
+
+/* Class = "NSTextFieldCell"; title = "remapping is disabled for checked applications"; ObjectID = "Y1I-k0-J1y"; */
+"Y1I-k0-J1y.title" = "การกำหนดปุ่มใหม่จะไม่มีผลกับแอปที่เลือกไว้";
+
+/* Class = "NSMenuItem"; title = "move one down"; ObjectID = "fY1-dw-1o1"; */
+"fY1-dw-1o1.title" = "เลื่อนลงหนึ่งรายการ";
+
+/* Class = "NSTabViewItem"; label = "Setting"; ObjectID = "uYA-LV-zsC"; */
+"uYA-LV-zsC.title" = "การตั้งค่า";

@@ -1,0 +1,39 @@
+
+/* Class = "NSTabViewItem"; label = "Key Remap"; ObjectID = "14e-rg-kjk"; */
+"14e-rg-kjk.title" = "Tastenbelegung";
+
+/* Class = "NSButtonCell"; title = "check update"; ObjectID = "4Dh-kS-y64"; */
+"4Dh-kS-y64.title" = "Jetzt prüfen";
+
+/* Class = "NSMenuItem"; title = "remove"; ObjectID = "502-f2-l6k"; */
+"502-f2-l6k.title" = "Diesen Eintrag löschen";
+
+/* Class = "NSTabViewItem"; label = "Exclusion Apps"; ObjectID = "5BL-ga-t3Q"; */
+"5BL-ga-t3Q.title" = "Ausgenommene Apps";
+
+/* Class = "NSMenuItem"; title = "move one up"; ObjectID = "5K6-xN-Jic"; */
+"5K6-xN-Jic.title" = "Eins nach oben";
+
+/* Class = "NSButtonCell"; title = "check for updates automatically"; ObjectID = "6Pk-W2-evg"; */
+"6Pk-W2-evg.title" = "Updates automatisch prüfen";
+
+/* Class = "NSMenuItem"; title = "move to bottom"; ObjectID = "EUh-qz-H2g"; */
+"EUh-qz-H2g.title" = "Ganz nach unten";
+
+/* Class = "NSMenuItem"; title = "move to the top"; ObjectID = "SPl-n7-KTj"; */
+"SPl-n7-KTj.title" = "Ganz nach oben";
+
+/* Class = "NSButtonCell"; title = "show icon on menu bar"; ObjectID = "Swa-9Q-bjA"; */
+"Swa-9Q-bjA.title" = "Symbol in Menüleiste zeigen";
+
+/* Class = "NSButtonCell"; title = "start with system login"; ObjectID = "UJa-91-PJq"; */
+"UJa-91-PJq.title" = "Nach Anmeldung starten";
+
+/* Class = "NSTextFieldCell"; title = "remapping is disabled for checked applications"; ObjectID = "Y1I-k0-J1y"; */
+"Y1I-k0-J1y.title" = "Für markierte Apps ist die Tastenbelegung deaktiviert";
+
+/* Class = "NSMenuItem"; title = "move one down"; ObjectID = "fY1-dw-1o1"; */
+"fY1-dw-1o1.title" = "Eins nach unten";
+
+/* Class = "NSTabViewItem"; label = "Setting"; ObjectID = "uYA-LV-zsC"; */
+"uYA-LV-zsC.title" = "Einstellungen";

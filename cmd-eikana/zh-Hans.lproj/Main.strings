@@ -1,0 +1,39 @@
+
+/* Class = "NSTabViewItem"; label = "Key Remap"; ObjectID = "14e-rg-kjk"; */
+"14e-rg-kjk.title" = "按键重映射";
+
+/* Class = "NSButtonCell"; title = "check update"; ObjectID = "4Dh-kS-y64"; */
+"4Dh-kS-y64.title" = "立即检查";
+
+/* Class = "NSMenuItem"; title = "remove"; ObjectID = "502-f2-l6k"; */
+"502-f2-l6k.title" = "删除此项目";
+
+/* Class = "NSTabViewItem"; label = "Exclusion Apps"; ObjectID = "5BL-ga-t3Q"; */
+"5BL-ga-t3Q.title" = "排除的应用";
+
+/* Class = "NSMenuItem"; title = "move one up"; ObjectID = "5K6-xN-Jic"; */
+"5K6-xN-Jic.title" = "上移一项";
+
+/* Class = "NSButtonCell"; title = "check for updates automatically"; ObjectID = "6Pk-W2-evg"; */
+"6Pk-W2-evg.title" = "自动检查更新";
+
+/* Class = "NSMenuItem"; title = "move to bottom"; ObjectID = "EUh-qz-H2g"; */
+"EUh-qz-H2g.title" = "移至最底部";
+
+/* Class = "NSMenuItem"; title = "move to the top"; ObjectID = "SPl-n7-KTj"; */
+"SPl-n7-KTj.title" = "移至最顶部";
+
+/* Class = "NSButtonCell"; title = "show icon on menu bar"; ObjectID = "Swa-9Q-bjA"; */
+"Swa-9Q-bjA.title" = "在菜单栏中显示图标";
+
+/* Class = "NSButtonCell"; title = "start with system login"; ObjectID = "UJa-91-PJq"; */
+"UJa-91-PJq.title" = "登录后启动此应用";
+
+/* Class = "NSTextFieldCell"; title = "remapping is disabled for checked applications"; ObjectID = "Y1I-k0-J1y"; */
+"Y1I-k0-J1y.title" = "已勾选的应用不会进行按键重映射";
+
+/* Class = "NSMenuItem"; title = "move one down"; ObjectID = "fY1-dw-1o1"; */
+"fY1-dw-1o1.title" = "下移一项";
+
+/* Class = "NSTabViewItem"; label = "Setting"; ObjectID = "uYA-LV-zsC"; */
+"uYA-LV-zsC.title" = "设置";
