@@ -151,15 +151,43 @@ extension GlobalStateTests {
       #expect(defaults.recorded.count == 2)
     }
 
-    @MainActor @Test func checkboxesReflectSavedStateAfterLoad() {
-      let controller = PreferenceScreens.setting
-      // viewDidLoad は保存値を読んで反映する。テストのホストは実設定で起動しているので、値の有無だけ確かめる
-      #expect([.on, .off].contains(controller.showIcon.state))
-      #expect([.on, .off].contains(controller.lunchAtStartup.state))
-      #expect([.on, .off].contains(controller.checkUpdateAtlaunch.state))
+    /// 読み取りだけを決まった値で返す UserDefaults。テストのホストの実設定を読まないようにする
+    final class StubDefaults: UserDefaults {
+      var values: [String: Any] = [:]
+
+      override func object(forKey defaultName: String) -> Any? {
+        values[defaultName]
+      }
     }
 
-    @MainActor @Test func menuBarHasTheFourItemsInOrder() {
+    // 自動起動のチェックは OS の登録状態から、アップデートのチェックは Sparkle の設定から表示するので、ここでは確かめない
+    @MainActor @Test func showIconCheckboxReflectsTheSavedValue() {
+      let controller = PreferenceScreens.setting
+      let defaults = StubDefaults(suiteName: nil)!
+      let originalDefaults = controller.userDefaults
+      let originalState = controller.showIcon.state
+      defer {
+        controller.userDefaults = originalDefaults
+        controller.showIcon.state = originalState
+      }
+      controller.userDefaults = defaults
+
+      defaults.values["showIcon"] = 0
+      controller.reflectSavedShowIcon()
+      #expect(controller.showIcon.state == .off)
+
+      defaults.values["showIcon"] = 1
+      controller.reflectSavedShowIcon()
+      #expect(controller.showIcon.state == .on)
+
+      // 保存値が無ければ表示する（初回起動の既定）
+      defaults.values = [:]
+      controller.showIcon.state = .off
+      controller.reflectSavedShowIcon()
+      #expect(controller.showIcon.state == .on)
+    }
+
+    @MainActor @Test func menuBarHasFourItemsAndASeparatorInOrder() {
       let titles = statusItem.menu?.items.map { $0.title } ?? []
       #expect(titles.count == 5)
       #expect(titles[0].hasPrefix("About ⌘英かな "))
