@@ -31,34 +31,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     let userDefaults = UserDefaults.standard
 
-    // 旧方式の登録は自動起動のオン・オフに関係なく残っていることがあるので、起動のたびに無効にする
-    disableLegacyHelperLoginItem()
-
-    // 「ログイン後にこのアプリを起動」。初回起動は既定でオンにして保存する
-    let launchAtStartup = StartupSettings.launchAtStartup(
-      saved: userDefaults.object(forKey: "lunchAtStartup"))
-    if launchAtStartup.isFirstLaunch {
-      setLaunchAtStartup(true)
-      userDefaults.set(1, forKey: "lunchAtStartup")
-    }
-
-    // 旧方式（2.6.0 より前）からの更新時に、自動起動を新方式で登録し直す
-    let lastVersion = userDefaults.string(forKey: "lastLaunchVersion")
-    let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-    let reregistered = shouldReregisterLaunchAtStartup(
-      lastVersion: lastVersion,
-      currentVersion: currentVersion,
-      launchAtStartupEnabled: launchAtStartup.enabled
-    )
-    if reregistered {
-      setLaunchAtStartup(true)
-    }
-    // 登録に失敗していたら版を記録せず、次の起動で移行をやり直す
-    if shouldRecordLaunchVersion(
-      reregistered: reregistered, registeredAfterward: reregistered && launchAtStartupIsRegistered())
-    {
-      userDefaults.set(currentVersion, forKey: "lastLaunchVersion")
-    }
+    // 自動起動（旧方式の無効化、初回の既定オン、旧方式からの移行）
+    prepareLaunchAtStartupOnLaunch(
+      defaults: userDefaults,
+      currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
 
     // 旧設定「起動時にアップデートを確認」を Sparkle の自動確認設定へ引き継ぐ（キーを消すので 1 度だけ走る）
     if let automaticallyChecks = StartupSettings.legacyAutomaticUpdateCheck(
