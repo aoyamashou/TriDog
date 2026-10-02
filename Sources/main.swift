@@ -12,7 +12,6 @@ import Cocoa
 
 // MARK: - 設定
 
-let qinggID = "com.aodaren.inputmethod.Qingg"
 let japaneseID = "com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese"
 let abcID = "com.apple.keylayout.ABC"
 
@@ -24,6 +23,12 @@ let defaults = UserDefaults.standard
 let refocusKey = "refocusEnabled"
 /// ABC に切り替える Shift の keyCode。既定は右 Shift
 let abcShiftKey = "abcShift"
+/// 左 ⌘ で切り替える入力ソースの ID。既定は清歌
+let leftCommandTargetKey = "leftCommandTarget"
+
+var leftCommandTarget: String {
+  defaults.string(forKey: leftCommandTargetKey) ?? "com.aodaren.inputmethod.Qingg"
+}
 
 var abcShift: CGKeyCode {
   defaults.integer(forKey: abcShiftKey) == Int(leftShift) ? leftShift : rightShift
@@ -32,7 +37,7 @@ var abcShift: CGKeyCode {
 /// 単体押しした修飾キーの切り替え先と、フォーカス付け替えの対象か
 func target(for keyCode: CGKeyCode) -> (id: String, cjkv: Bool)? {
   switch keyCode {
-  case 55: return (qinggID, true)  // 左 ⌘ → 清歌
+  case 55: return (leftCommandTarget, true)  // 左 ⌘ → 選んだ入力ソース（既定は清歌）
   case 54: return (japaneseID, true)  // 右 ⌘ → 日本語
   case abcShift: return (abcID, false)  // 左 or 右 ⇧ → ABC
   default: return nil
@@ -73,6 +78,29 @@ func selectInputSource(_ id: String) -> Bool {
   else { return false }
 
   return TISSelectInputSource(source) == noErr
+}
+
+/// 左 ⌘ の切り替え先に選べる入力ソース（ID と名前）。
+/// 有効で選択できるキーボード入力ソースのうち、キーボードレイアウト（ABC など英語系）と
+/// Apple の日本語入力を除く。清歌のように同じ ID が 2 件返るものは 1 件にまとめる
+func selectableInputMethods() -> [(id: String, name: String)] {
+  guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource]
+  else { return [] }
+
+  var result: [(id: String, name: String)] = []
+  for source in list {
+    guard property(source, kTISPropertyInputSourceCategory) as String?
+      == kTISCategoryKeyboardInputSource as String,
+      property(source, kTISPropertyInputSourceType) as String?
+        != kTISTypeKeyboardLayout as String,
+      property(source, kTISPropertyInputSourceIsSelectCapable) as Bool? == true,
+      let id = property(source, kTISPropertyInputSourceID) as String?,
+      !id.hasPrefix("com.apple.inputmethod.Kotoeri"),
+      !result.contains(where: { $0.id == id })
+    else { continue }
+    result.append((id, property(source, kTISPropertyLocalizedName) as String? ?? id))
+  }
+  return result
 }
 
 // MARK: - フォーカスの付け替え（CJKV 対策）
@@ -180,46 +208,67 @@ func watch() {
 
 // MARK: - メニュー
 
-final class MenuHandler: NSObject {
-  let refocusItem = NSMenuItem(
-    title: "切换后刷新焦点（修复中日韩输入法不生效）", action: #selector(toggleRefocus), keyEquivalent: "")
-  let leftShiftItem = NSMenuItem(title: "左 ⇧", action: #selector(chooseShift), keyEquivalent: "")
-  let rightShiftItem = NSMenuItem(title: "右 ⇧", action: #selector(chooseShift), keyEquivalent: "")
+/// メニューは開くたびに作り直す（入力ソースの追加・削除をその場で反映するため）。
+/// 選択肢はサブメニューにせず、見出しの下にインデントして並べる
+final class MenuHandler: NSObject, NSMenuDelegate {
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    menu.removeAllItems()
 
-  func makeMenu() -> NSMenu {
-    let shiftMenu = NSMenu()
-    leftShiftItem.tag = Int(leftShift)
-    rightShiftItem.tag = Int(rightShift)
-    for item in [refocusItem, leftShiftItem, rightShiftItem] { item.target = self }
-    shiftMenu.addItem(leftShiftItem)
-    shiftMenu.addItem(rightShiftItem)
-
-    let shiftItem = NSMenuItem(title: "切换英文 (ABC) 的按键", action: nil, keyEquivalent: "")
-    shiftItem.submenu = shiftMenu
-
-    let menu = NSMenu()
-    menu.addItem(refocusItem)
-    menu.addItem(shiftItem)
+    addItem(
+      to: menu, "切换后刷新焦点（修复中日韩输入法不生效）", #selector(toggleRefocus),
+      on: defaults.bool(forKey: refocusKey))
     menu.addItem(.separator())
+
+    addHeader(to: menu, "左 ⌘ 切换到")
+    let methods = selectableInputMethods()
+    if methods.isEmpty {
+      addHeader(to: menu, "（没有可选的输入法）", indented: true)
+    }
+    for method in methods {
+      addItem(
+        to: menu, method.name, #selector(chooseLeftCommandTarget), on: method.id == leftCommandTarget,
+        indented: true
+      ).representedObject = method.id
+    }
+    menu.addItem(.separator())
+
+    addHeader(to: menu, "切换英文 (ABC) 的按键")
+    for (title, keyCode) in [("左 ⇧", leftShift), ("右 ⇧", rightShift)] {
+      addItem(to: menu, title, #selector(chooseShift), on: abcShift == keyCode, indented: true).tag =
+        Int(keyCode)
+    }
+    menu.addItem(.separator())
+
     menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-    updateStates()
-    return menu
   }
 
-  func updateStates() {
-    refocusItem.state = defaults.bool(forKey: refocusKey) ? .on : .off
-    leftShiftItem.state = abcShift == leftShift ? .on : .off
-    rightShiftItem.state = abcShift == rightShift ? .on : .off
+  @discardableResult
+  private func addItem(
+    to menu: NSMenu, _ title: String, _ action: Selector, on: Bool, indented: Bool = false
+  ) -> NSMenuItem {
+    let item = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+    item.target = self
+    item.state = on ? .on : .off
+    item.indentationLevel = indented ? 1 : 0
+    return item
+  }
+
+  private func addHeader(to menu: NSMenu, _ title: String, indented: Bool = false) {
+    let item = menu.addItem(withTitle: title, action: nil, keyEquivalent: "")
+    item.isEnabled = false
+    item.indentationLevel = indented ? 1 : 0
   }
 
   @objc func toggleRefocus() {
     defaults.set(!defaults.bool(forKey: refocusKey), forKey: refocusKey)
-    updateStates()
+  }
+
+  @objc func chooseLeftCommandTarget(_ sender: NSMenuItem) {
+    defaults.set(sender.representedObject as? String, forKey: leftCommandTargetKey)
   }
 
   @objc func chooseShift(_ sender: NSMenuItem) {
     defaults.set(sender.tag, forKey: abcShiftKey)
-    updateStates()
   }
 }
 
@@ -231,7 +280,10 @@ app.setActivationPolicy(.accessory)
 let menuHandler = MenuHandler()
 let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 statusItem.button?.title = "⌘"
-statusItem.menu = menuHandler.makeMenu()
+let menu = NSMenu()
+menu.autoenablesItems = false
+menu.delegate = menuHandler
+statusItem.menu = menu
 
 if CGPreflightListenEventAccess() {
   watch()
