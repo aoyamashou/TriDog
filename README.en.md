@@ -4,6 +4,8 @@
 
 <img src="Resources/banner.png" alt="TriDog banner">
 
+<img src="Resources/TriDog-promo.gif" alt="TriDog demo" width="420">
+
 A tiny macOS menu bar app: **tap a modifier key to jump straight to a specific input method**. Made for people who type in Chinese, Japanese and English and are tired of cycling with ⌃Space.
 
 > **Scope: this project is for US-layout keyboards only.** JIS (Japanese) keyboards already have dedicated 英数 / かな keys that switch input methods natively, so they don't need it.

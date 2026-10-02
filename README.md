@@ -4,6 +4,8 @@
 
 <img src="Resources/banner.png" alt="TriDog banner">
 
+<img src="Resources/TriDog-promo.gif" alt="TriDog demo" width="420">
+
 一个 macOS 菜单栏小工具：**单击修饰键，直接切换到指定输入法**。适合同时使用中文、日语、英语三种输入法的人，不用再反复按 ⌃Space 轮换。
 
 > **适用范围：本项目仅适用于 US 配列（美式布局）键盘。** JIS 配列（日式布局）键盘自带「英数」「かな」键，系统本身就能直接切换，不需要本项目。

@@ -4,6 +4,8 @@
 
 <img src="Resources/banner.png" alt="TriDog banner">
 
+<img src="Resources/TriDog-promo.gif" alt="TriDog demo" width="420">
+
 macOS のメニューバー常駐アプリです。**修飾キーを単体で押すと、指定した入力ソースに直接切り替わります**。中国語・日本語・英語の 3 言語を使い分ける人向けで、⌃Space で順番に切り替える必要がなくなります。
 
 > **対象：本プロジェクトは US 配列キーボード専用です。** JIS 配列キーボードには「英数」「かな」キーがあり、標準で直接切り替えられるので、本プロジェクトは不要です。
