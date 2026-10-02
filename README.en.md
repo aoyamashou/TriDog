@@ -8,7 +8,7 @@ A tiny macOS menu bar app: **tap a modifier key to jump straight to a specific i
 
 | Tap | Switches to |
 |---|---|
-| Left ⌘ | An input method of your choice (default: Qingg / 清歌输入法) |
+| Left ⌘ | An input method of your choice (default: Qingg / 清歌输入法, or the first available one if Qingg isn't installed) |
 | Right ⌘ | Japanese (Romaji) |
 | Right ⇧ (or Left ⇧) | English (ABC) |
 
@@ -16,8 +16,8 @@ Only a clean tap counts: press and release with nothing in between. ⌘C, ⌘-cl
 
 ## Install
 
-1. Download the latest `TriDog-x.x.x.zip` from [Releases](https://github.com/aoyamashou/ime-switch/releases), unzip it, and move `TriDog.app` to Applications.
-2. The app is not notarized by Apple, so macOS may block it on first launch. Right-click it and choose **Open**.
+1. Download the latest `TriDog-x.x.x.zip` from [Releases](https://github.com/aoyamashou/TriDog/releases), unzip it, and move `TriDog.app` to Applications.
+2. This is a hobby project and is not notarized by Apple, so macOS may block it on first launch. Right-click it and choose **Open**.
 3. Allow TriDog under **System Settings → Privacy & Security → Input Monitoring**.
 
 Requires an Apple Silicon Mac running macOS 13 or later.
@@ -31,7 +31,7 @@ Click the ♻ icon in the menu bar:
 - **Key for English (ABC)**: Left ⇧ or Right ⇧.
 - **About / Quit**
 
-Menu labels are currently in Chinese only.
+Menu labels follow your system language (Chinese, Japanese, or English).
 
 ## Build from source
 

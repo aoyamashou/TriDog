@@ -18,7 +18,7 @@ let abcID = "com.apple.keylayout.ABC"
 let leftShift: CGKeyCode = 56
 let rightShift: CGKeyCode = 60
 
-let homepage = "https://github.com/aoyamashou/ime-switch"
+let homepage = "https://github.com/aoyamashou/TriDog"
 
 let defaults = UserDefaults.standard
 /// 切り替え後にフォーカスを付け替えるか（CJKV 入力メソッドの不具合対策）。既定はオフ
@@ -28,8 +28,31 @@ let abcShiftKey = "abcShift"
 /// 左 ⌘ で切り替える入力ソースの ID。既定は清歌
 let leftCommandTargetKey = "leftCommandTarget"
 
-var leftCommandTarget: String {
-  defaults.string(forKey: leftCommandTargetKey) ?? "com.aodaren.inputmethod.Qingg"
+/// 左 ⌘ の切り替え先。保存値 → 清歌 → 選べる入力ソースの先頭 の順に、実際に有効なものを使う。
+/// 清歌を入れていない環境や、選んでいた入力ソースを削除した場合でも動くようにする
+var leftCommandTarget: String? {
+  let methods = selectableInputMethods()
+  let candidates = [defaults.string(forKey: leftCommandTargetKey), "com.aodaren.inputmethod.Qingg"]
+  for case let id? in candidates where methods.contains(where: { $0.id == id }) {
+    return id
+  }
+  return methods.first?.id
+}
+
+/// メニューの表示言語。システムの優先言語が中国語・日本語ならそれ、他は英語
+let language: String = {
+  let preferred = Locale.preferredLanguages.first ?? "en"
+  if preferred.hasPrefix("zh") { return "zh" }
+  if preferred.hasPrefix("ja") { return "ja" }
+  return "en"
+}()
+
+func text(zh: String, en: String, ja: String) -> String {
+  switch language {
+  case "zh": return zh
+  case "ja": return ja
+  default: return en
+  }
 }
 
 var abcShift: CGKeyCode {
@@ -39,7 +62,7 @@ var abcShift: CGKeyCode {
 /// 単体押しした修飾キーの切り替え先と、フォーカス付け替えの対象か
 func target(for keyCode: CGKeyCode) -> (id: String, cjkv: Bool)? {
   switch keyCode {
-  case 55: return (leftCommandTarget, true)  // 左 ⌘ → 選んだ入力ソース（既定は清歌）
+  case 55: return leftCommandTarget.map { ($0, true) }  // 左 ⌘ → 選んだ入力ソース（既定は清歌）
   case 54: return (japaneseID, true)  // 右 ⌘ → 日本語
   case abcShift: return (abcID, false)  // 左 or 右 ⇧ → ABC
   default: return nil
@@ -217,32 +240,48 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     menu.removeAllItems()
 
     addItem(
-      to: menu, "切换后刷新焦点（修复中日韩输入法不生效）", #selector(toggleRefocus),
+      to: menu, text(
+        zh: "切换后刷新焦点（修复中日韩输入法不生效）",
+        en: "Refocus After Switching (fixes CJK input not applying)",
+        ja: "切り替え後にフォーカスを更新（中日韓入力が反映されない問題の対策）"), #selector(toggleRefocus),
       on: defaults.bool(forKey: refocusKey))
     menu.addItem(.separator())
 
-    addHeader(to: menu, "左 ⌘ 切换到")
+    addHeader(to: menu, text(zh: "左 ⌘ 切换到", en: "Left ⌘ Switches To", ja: "左 ⌘ の切り替え先"))
     let methods = selectableInputMethods()
     if methods.isEmpty {
-      addHeader(to: menu, "（没有可选的输入法）", indented: true)
+      addHeader(
+        to: menu,
+        text(zh: "（没有可选的输入法）", en: "(No input methods available)", ja: "（選べる入力ソースがありません）"),
+        indented: true)
     }
+    let current = leftCommandTarget
     for method in methods {
       addItem(
-        to: menu, method.name, #selector(chooseLeftCommandTarget), on: method.id == leftCommandTarget,
+        to: menu, method.name, #selector(chooseLeftCommandTarget), on: method.id == current,
         indented: true
       ).representedObject = method.id
     }
     menu.addItem(.separator())
 
-    addHeader(to: menu, "切换英文 (ABC) 的按键")
-    for (title, keyCode) in [("左 ⇧", leftShift), ("右 ⇧", rightShift)] {
+    addHeader(
+      to: menu,
+      text(zh: "切换英文 (ABC) 的按键", en: "Key for English (ABC)", ja: "英語 (ABC) に切り替えるキー"))
+    let shifts = [
+      (text(zh: "左 ⇧", en: "Left ⇧", ja: "左 ⇧"), leftShift),
+      (text(zh: "右 ⇧", en: "Right ⇧", ja: "右 ⇧"), rightShift),
+    ]
+    for (title, keyCode) in shifts {
       addItem(to: menu, title, #selector(chooseShift), on: abcShift == keyCode, indented: true).tag =
         Int(keyCode)
     }
     menu.addItem(.separator())
 
-    addItem(to: menu, "关于 三语狗输入快切", #selector(showAbout), on: false)
-    menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+    addItem(
+      to: menu, text(zh: "关于 三语狗输入快切", en: "About TriDog", ja: "TriDog について"),
+      #selector(showAbout), on: false)
+    menu.addItem(
+      withTitle: text(zh: "退出", en: "Quit", ja: "終了"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
   }
 
   @objc func showAbout() {

@@ -9,7 +9,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.corndog.ime-switch</string>
+	<string>io.github.aoyamashou.tridog</string>
 	<key>CFBundleName</key>
 	<string>TriDog</string>
 	<key>CFBundlePackageType</key>
