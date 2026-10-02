@@ -22,6 +22,12 @@ macOS のメニューバー常駐アプリです。**修飾キーを単体で押
 
 1. [Releases](https://github.com/aoyamashou/TriDog/releases) から最新の `TriDog-x.x.x.zip` をダウンロードして展開し、`TriDog.app` を「アプリケーション」フォルダに移動します。
 2. 初回起動：個人の趣味プロジェクトで Apple の公証を受けていないため、ダブルクリックで開くとブロックされることがあります。右クリック → 開く を選んでください。
+   それでも開けない場合（「壊れている」と表示されるなど）は、ターミナルで次のコマンドを実行して隔離属性を外してから、もう一度開いてください。
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/TriDog.app
+   ```
+
 3. 「システム設定 → プライバシーとセキュリティ → 入力監視」で TriDog を許可します。
 
 動作環境：Apple Silicon Mac、macOS 13 以降。

@@ -22,6 +22,12 @@ Only a clean tap counts: press and release with nothing in between. ⌘C, ⌘-cl
 
 1. Download the latest `TriDog-x.x.x.zip` from [Releases](https://github.com/aoyamashou/TriDog/releases), unzip it, and move `TriDog.app` to Applications.
 2. This is a hobby project and is not notarized by Apple, so macOS may block it on first launch. Right-click it and choose **Open**.
+   If it still won't open (for example, macOS says it is "damaged"), run this in Terminal to remove the quarantine flag, then open it again:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/TriDog.app
+   ```
+
 3. Allow TriDog under **System Settings → Privacy & Security → Input Monitoring**.
 
 Requires an Apple Silicon Mac running macOS 13 or later.

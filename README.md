@@ -22,6 +22,12 @@
 
 1. 从 [Releases](https://github.com/aoyamashou/TriDog/releases) 下载最新的 `TriDog-x.x.x.zip`，解压后把 `TriDog.app` 拖到「应用程序」文件夹。
 2. 首次打开：这是个人业余小项目，没有付费做苹果公证，双击时可能会被系统拦截。请右键点击 → 打开。
+   如果仍然打不开（例如提示「已损坏」），在终端里运行下面的命令解除隔离，然后再打开：
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/TriDog.app
+   ```
+
 3. 在「系统设置 → 隐私与安全性 → 输入监控」里允许 TriDog。
 
 运行要求：Apple Silicon Mac，macOS 13 或更新。
