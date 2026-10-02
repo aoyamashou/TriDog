@@ -16,7 +16,8 @@ import Cocoa
 enum Strategy {
   /// TISSelectInputSource のみ（キーボードレイアウト向け）
   case plain
-  /// 選択後にフォーカスを一瞬自アプリへ移して戻す（CJKV 入力メソッドの不具合対策）
+  /// 選択後にフォーカスを一瞬自アプリへ移して戻す（CJKV 入力メソッドの不具合対策）。
+  /// メニューの「切换后刷新焦点」がオフのときは plain と同じ
   case refocus
   /// 選択後 50ms でもう一度 TISSelectInputSource
   case reselect
@@ -35,6 +36,9 @@ let targets: [CGKeyCode: Target] = [
   54: Target(id: "com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese", strategy: .refocus),  // 右 ⌘ → 日本語
   60: Target(id: "com.apple.keylayout.ABC", strategy: .plain),  // 右 ⇧ → ABC
 ]
+
+/// 「切换后刷新焦点」の保存キー。既定はオフ
+let refocusEnabledKey = "refocusEnabled"
 
 // MARK: - 入力ソース
 
@@ -205,7 +209,9 @@ final class Switcher {
     case .plain, .kanaKey:
       break
     case .refocus:
-      refocuser.bounce()
+      if UserDefaults.standard.bool(forKey: refocusEnabledKey) {
+        refocuser.bounce()
+      }
     case .reselect:
       DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
         _ = InputSource.select(target.id)
@@ -232,10 +238,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     statusItem.button?.title = "⌘"
     let menu = NSMenu()
+    let refocusItem = menu.addItem(
+      withTitle: "切换后刷新焦点（修复中日韩输入法不生效）",
+      action: #selector(toggleRefocus(_:)), keyEquivalent: "")
+    refocusItem.target = self
+    refocusItem.state = UserDefaults.standard.bool(forKey: refocusEnabledKey) ? .on : .off
+    menu.addItem(NSMenuItem.separator())
     menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     statusItem.menu = menu
 
     switcher.start()
+  }
+
+  @objc private func toggleRefocus(_ sender: NSMenuItem) {
+    let enabled = sender.state != .on
+    UserDefaults.standard.set(enabled, forKey: refocusEnabledKey)
+    sender.state = enabled ? .on : .off
   }
 }
 
