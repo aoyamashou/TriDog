@@ -54,6 +54,13 @@ open build/TriDog.app
 
 日语和 ABC 的输入法 ID 写在 `Sources/main.swift` 顶部。图标由 `Scripts/make-icon.swift` 生成。
 
+## 友情项目
+
+这两个项目的作者在输入法和 Claude 模型使用方面给了我非常多的指导，大家有兴趣也可以看看他们的项目：
+
+- [水杉输入法 MSIME](https://github.com/metasequoiaime/msime)：开源的多平台中文输入法，支持 Android、iOS、macOS、Linux、Windows 和 HarmonyOS，各平台共用同一套 Rust 输入引擎。
+- [QDuo](https://github.com/XueshiQiao/qduo)：macOS 划词工具，在任意 App 里选中文字，光标旁就会弹出你自定义的操作（翻译、润色、搜索、朗读、问 AI 等），结果直接写回原处。
+
 ## 致谢与许可
 
 基于 iMasanari 的 [⌘英かな](https://github.com/iMasanari/cmd-eikana)（及 [dominion525 的 Apple Silicon 分支](https://github.com/dominion525/cmd-eikana)）改造。采用与上游一致的 [MIT License](LICENSE)。
