@@ -2,7 +2,7 @@
 
 **中文** | [English](README.en.md) | [日本語](README.ja.md)
 
-<img src="Resources/icon.png" width="128">
+<img src="Resources/banner.png" alt="TriDog banner">
 
 一个 macOS 菜单栏小工具：**单击修饰键，直接切换到指定输入法**。适合同时使用中文、日语、英语三种输入法的人，不用再反复按 ⌃Space 轮换。
 

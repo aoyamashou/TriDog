@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md) | **日本語**
 
-<img src="Resources/icon.png" width="128">
+<img src="Resources/banner.png" alt="TriDog banner">
 
 macOS のメニューバー常駐アプリです。**修飾キーを単体で押すと、指定した入力ソースに直接切り替わります**。中国語・日本語・英語の 3 言語を使い分ける人向けで、⌃Space で順番に切り替える必要がなくなります。
 
