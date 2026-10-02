@@ -6,11 +6,13 @@
 
 A tiny macOS menu bar app: **tap a modifier key to jump straight to a specific input method**. Made for people who type in Chinese, Japanese and English and are tired of cycling with ⌃Space.
 
+> **Scope: this project is for US-layout keyboards only.** JIS (Japanese) keyboards already have dedicated 英数 / かな keys that switch input methods natively, so they don't need it.
+
 | Tap | Switches to |
 |---|---|
-| Left ⌘ | An input method of your choice (default: Qingg / 清歌输入法, or the first available one if Qingg isn't installed) |
+| Left ⌘ | A Chinese input method, **your choice from the menu** (default: Qingg / 清歌输入法, or the first available one if Qingg isn't installed) |
 | Right ⌘ | Japanese (Romaji) |
-| Right ⇧ (or Left ⇧) | English (ABC) |
+| Right ⇧ or Left ⇧ | English (ABC). **Choose Left ⇧ or Right ⇧ in the menu** (default: Right ⇧) |
 
 Only a clean tap counts: press and release with nothing in between. ⌘C, ⌘-click and typing capitals with Shift never trigger a switch.
 
@@ -32,6 +34,14 @@ Click the ♻ icon in the menu bar:
 - **About / Quit**
 
 Menu labels follow your system language (Chinese, Japanese, or English).
+
+## Different key preferences?
+
+If this layout doesn't suit you (other keys, other input methods), clone this repo and have your AI agent (e.g. Claude Code) change it. All the logic lives in one file, `Sources/main.swift`:
+
+```bash
+git clone https://github.com/aoyamashou/TriDog.git
+```
 
 ## Build from source
 
