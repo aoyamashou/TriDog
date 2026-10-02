@@ -1,4 +1,6 @@
-# ImeSwitch（自用）
+# 三语狗输入快切 TriDog
+
+<img src="Resources/icon.png" width="128">
 
 基于 [⌘英かな](https://github.com/iMasanari/cmd-eikana) 精简而来。单击修饰键直接切换到指定输入法：
 
@@ -8,7 +10,7 @@
 | 右 ⌘ | 日语（罗马字） |
 | 右 ⇧ | ABC |
 
-菜单栏「⌘」图标里可以：
+菜单栏 ♻ 图标里可以：
 - 选择左 ⌘ 切换到哪个输入法（列出已启用的第三方/非日英输入法，默认清歌）
 - 选择用左 ⇧ 还是右 ⇧ 切换到 ABC（默认右 ⇧）
 - 打开或关闭「切换后刷新焦点」（默认关闭）
@@ -19,12 +21,18 @@
 
 ```bash
 ./build.sh
-open build/ImeSwitch.app
+open build/TriDog.app
 ```
 
-首次运行需要在「系统设置 → 隐私与安全性 → 输入监控」里允许 ImeSwitch。每次重新构建后可能要重新勾选。
-退出：点菜单栏的「⌘」→ Quit。
+首次运行需要在「系统设置 → 隐私与安全性 → 输入监控」里允许 TriDog。每次重新构建后可能要重新勾选。
+退出：点菜单栏的 ♻ 图标 → Quit。
 
 ## 中日韩输入法切换不生效的问题
 
 用 TIS 接口切到中日韩输入法后，当前应用偶尔还在用旧的输入法。打开菜单里的「切换后刷新焦点」后，切到清歌或日语时，焦点会离开当前窗口约 30ms 再回来，强制当前应用重新读取输入法。代价是焦点会闪一下，打开着的菜单或弹出框可能会被关掉。
+
+## 许可
+
+MIT License，与上游 [iMasanari/cmd-eikana](https://github.com/iMasanari/cmd-eikana) 一致，保留原作者版权声明。见 [LICENSE](LICENSE)。
+
+图标：`swift Scripts/make-icon.swift build/AppIcon.iconset && iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns`

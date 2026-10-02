@@ -1,6 +1,6 @@
 //
 //  main.swift
-//  ImeSwitch — 修飾キー単体押しで入力ソースを直接切り替える（自用）
+//  三语狗输入快切 TriDog — 修飾キー単体押しで入力ソースを直接切り替える
 //
 //  Based on ⌘英かな (cmd-eikana)
 //  MIT License
@@ -17,6 +17,8 @@ let abcID = "com.apple.keylayout.ABC"
 
 let leftShift: CGKeyCode = 56
 let rightShift: CGKeyCode = 60
+
+let homepage = "https://github.com/aoyamashou/ime-switch"
 
 let defaults = UserDefaults.standard
 /// 切り替え後にフォーカスを付け替えるか（CJKV 入力メソッドの不具合対策）。既定はオフ
@@ -196,7 +198,7 @@ func watch() {
         return Unmanaged.passUnretained(event)
       }, userInfo: nil)
   else {
-    NSLog("ImeSwitch: failed to create event tap")
+    NSLog("TriDog: failed to create event tap")
     exit(1)
   }
 
@@ -239,7 +241,27 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     }
     menu.addItem(.separator())
 
+    addItem(to: menu, "关于 三语狗输入快切", #selector(showAbout), on: false)
     menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+  }
+
+  @objc func showAbout() {
+    let credits = NSMutableAttributedString(
+      string: "\(homepage)\n\nBased on ⌘英かな by iMasanari · MIT License",
+      attributes: [
+        .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+        .foregroundColor: NSColor.secondaryLabelColor,
+      ])
+    credits.addAttribute(.link, value: homepage, range: NSRange(location: 0, length: homepage.count))
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    credits.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: credits.length))
+
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.orderFrontStandardAboutPanel(options: [
+      .applicationName: "三语狗输入快切 TriDog",
+      .credits: credits,
+    ])
   }
 
   @discardableResult
@@ -279,7 +301,10 @@ app.setActivationPolicy(.accessory)
 
 let menuHandler = MenuHandler()
 let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-statusItem.button?.title = "⌘"
+// アプリアイコンと同じリサイクルマーク。テンプレート画像にしてメニューバーの明暗に合わせる
+let statusImage = NSImage(systemSymbolName: "arrow.3.trianglepath", accessibilityDescription: "TriDog")
+statusImage?.isTemplate = true
+statusItem.button?.image = statusImage
 let menu = NSMenu()
 menu.autoenablesItems = false
 menu.delegate = menuHandler
