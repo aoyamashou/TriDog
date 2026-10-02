@@ -30,7 +30,7 @@ Requires an Apple Silicon Mac running macOS 13 or later.
 
 Click the ♻ icon in the menu bar:
 
-- **Refocus after switching** (off by default): a long-standing macOS bug sometimes leaves the focused app on the old input method after switching to a Chinese, Japanese or Korean input method, even though the menu bar has already changed. With this on, TriDog briefly takes focus for about 30 ms and hands it back, which forces the app to pick up the new input method. The trade-off is a short focus flicker, and an open menu or popover may close.
+- **Refocus after switching** (off by default): a long-standing macOS bug sometimes leaves the focused app on the old input method after switching to a Chinese, Japanese or Korean input method, even though the menu bar has already changed. This is a macOS issue, not a problem with any input method. With this on, TriDog briefly takes focus for about 30 ms and hands it back, which forces the app to pick up the new input method. The trade-off is a short focus flicker, and an open menu or popover may close. Floating-window apps such as Raycast and Tinycast will also close automatically.
 - **Left ⌘ switches to**: choose from your enabled input methods. English keyboard layouts like ABC and Apple's Japanese input method are not listed.
 - **Key for English (ABC)**: Left ⇧ or Right ⇧.
 - **About / Quit**
