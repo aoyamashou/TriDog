@@ -37,6 +37,10 @@ Click the ♻ icon in the menu bar:
 
 Menu labels follow your system language (Chinese, Japanese, or English).
 
+## Tip
+
+If you like one-tap switching, you can turn off the built-in input switching shortcuts so you don't trigger them by accident: open **System Settings → Keyboard → Keyboard Shortcuts… → Input Sources** and uncheck **Select the previous input source** (⌃Space) and **Select next source in Input menu** (⌃⌥Space).
+
 ## Different key preferences?
 
 If this layout doesn't suit you (other keys, other input methods), clone this repo and have your AI agent (e.g. Claude Code) change it. All the logic lives in one file, `Sources/main.swift`:
