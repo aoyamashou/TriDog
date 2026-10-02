@@ -9,6 +9,7 @@
 
 import Carbon.HIToolbox
 import Cocoa
+import ServiceManagement
 
 // MARK: - 設定
 
@@ -245,6 +246,10 @@ final class MenuHandler: NSObject, NSMenuDelegate {
         en: "Refocus After Switching (fixes CJK input not applying)",
         ja: "切り替え後にフォーカスを更新（中日韓入力が反映されない問題の対策）"), #selector(toggleRefocus),
       on: defaults.bool(forKey: refocusKey))
+    // 状態は SMAppService が持つので UserDefaults には保存しない。未登録（既定）ならオフ
+    addItem(
+      to: menu, text(zh: "开机自动启动", en: "Launch at Login", ja: "ログイン時に起動"),
+      #selector(toggleLaunchAtLogin), on: SMAppService.mainApp.status == .enabled)
     menu.addItem(.separator())
 
     addHeader(to: menu, text(zh: "左 ⌘ 切换到", en: "Left ⌘ Switches To", ja: "左 ⌘ の切り替え先"))
@@ -322,6 +327,23 @@ final class MenuHandler: NSObject, NSMenuDelegate {
 
   @objc func toggleRefocus() {
     defaults.set(!defaults.bool(forKey: refocusKey), forKey: refocusKey)
+  }
+
+  @objc func toggleLaunchAtLogin() {
+    let service = SMAppService.mainApp
+    do {
+      if service.status == .enabled {
+        try service.unregister()
+      } else {
+        try service.register()
+      }
+    } catch {
+      NSLog("TriDog: launch at login: \(error)")
+    }
+    // ユーザーの承認待ちになったときは「ログイン項目」の設定画面を開く
+    if service.status == .requiresApproval {
+      SMAppService.openSystemSettingsLoginItems()
+    }
   }
 
   @objc func chooseLeftCommandTarget(_ sender: NSMenuItem) {
