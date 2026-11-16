@@ -64,6 +64,30 @@ var abcShift: CGKeyCode {
   defaults.integer(forKey: abcShiftKey) == Int(leftShift) ? leftShift : rightShift
 }
 
+// MARK: - JIS の 英数・かな キー
+
+let eisu: CGKeyCode = 102
+let kana: CGKeyCode = 104
+
+func jisTargetKey(_ keyCode: CGKeyCode) -> String {
+  keyCode == eisu ? "eisuTarget" : "kanaTarget"
+}
+
+/// 英数・かな の切り替え先（UserDefaults のキャッシュ）。入っていないキーは接管せず、システムの動作に任せる。
+/// タップのコールバックは全キー入力で呼ばれるので、そこでは UserDefaults や TIS を読まずにこれだけを見る
+var jisTargets: [CGKeyCode: String] = [:]
+
+/// 保存値を読み直す。切り替え先の入力ソースが無くなっていたら接管しない（キーを飲み込んだまま何も起きない状態を避ける）
+func reloadJISTargets() {
+  var targets: [CGKeyCode: String] = [:]
+  for keyCode in [eisu, kana] {
+    if let id = defaults.string(forKey: jisTargetKey(keyCode)), isSelectable(id) {
+      targets[keyCode] = id
+    }
+  }
+  jisTargets = targets
+}
+
 /// 単体押しした修飾キーの切り替え先と、フォーカス付け替えの対象か
 func target(for keyCode: CGKeyCode) -> (id: String, cjkv: Bool)? {
   switch keyCode {
@@ -151,6 +175,13 @@ func logSettled(expecting id: String) {
 func property<T>(_ source: TISInputSource, _ key: CFString) -> T? {
   guard let ptr = TISGetInputSourceProperty(source, key) else { return nil }
   return Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? T
+}
+
+/// id の入力ソースが有効で、選択できるか
+func isSelectable(_ id: String) -> Bool {
+  let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
+  let list = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource] ?? []
+  return list.contains { property($0, kTISPropertyInputSourceIsSelectCapable) as Bool? == true }
 }
 
 /// id の入力ソースを選ぶ。既に選ばれていれば何もせず false
@@ -251,12 +282,39 @@ func bounceFocus() {
   }
 }
 
-// MARK: - 修飾キー単体押しの検出
+// MARK: - キーの検出
 
+/// 見ているだけのタップ（「入力監視」）。修飾キーの単体押しはこちらで判定する
 var eventTap: CFMachPort?
+/// 英数・かな を飲み込むタップ（「アクセシビリティ」）。接管しているときだけ作り、キー入力だけを受ける。
+/// defaultTap はコールバックが終わるまでイベントを止めるので、受ける種類を最小にしておく
+var swallowTap: CFMachPort?
+var tapSources: [CFMachPort: CFRunLoopSource] = [:]
 /// 押されたまま他の操作が無い修飾キー
 var pressedKeyCode: CGKeyCode?
+/// 飲み込んだ keyDown の keyCode。対応する keyUp も飲み込む
+var swallowedKeys = Set<CGKeyCode>()
 
+/// 切り替える。タップのコールバック中に TIS を呼ぶとタイムアウトしやすいので、次のループで呼ぶこと
+func switchInputSource(to id: String, cjkv: Bool, keyCode: CGKeyCode) {
+  log(
+    "key=\(keyCode) target=\(id) cjkv=\(cjkv) refocus=\(defaults.bool(forKey: refocusKey)) frontmost=\(frontmostDescription()) current=\(currentSourceDescription())"
+  )
+  let switched = selectInputSource(id)
+  logSettled(expecting: id)
+  guard cjkv else { return }
+  if switched {
+    log("  path=switched")
+    if defaults.bool(forKey: refocusKey) { bounceFocus() }
+  } else {
+    // 既に目標の入力ソースになっている。システム上は切り替わっているのに
+    // アプリ側が英字のまま（macOS の不具合）という状態から、もう一度押して復帰できるようにする
+    log("  path=reactivate")
+    reactivate(id)
+  }
+}
+
+/// 見ているだけのタップのイベント処理（修飾キーの単体押し）
 func handle(_ type: CGEventType, _ event: CGEvent) {
   switch type {
   case .tapDisabledByTimeout, .tapDisabledByUserInput:
@@ -278,54 +336,147 @@ func handle(_ type: CGEventType, _ event: CGEvent) {
     let isTap = pressedKeyCode == keyCode
     pressedKeyCode = nil
     guard isTap, let target = target(for: keyCode) else { return }
-    // タップのコールバック中に TIS を呼ぶとタイムアウトしやすいので、次のループで行う
-    DispatchQueue.main.async {
-      log(
-        "key=\(keyCode) target=\(target.id) cjkv=\(target.cjkv) refocus=\(defaults.bool(forKey: refocusKey)) frontmost=\(frontmostDescription()) current=\(currentSourceDescription())"
-      )
-      let switched = selectInputSource(target.id)
-      logSettled(expecting: target.id)
-      guard target.cjkv else { return }
-      if switched {
-        log("  path=switched")
-        if defaults.bool(forKey: refocusKey) { bounceFocus() }
-      } else {
-        // 既に目標の入力ソースになっている。システム上は切り替わっているのに
-        // アプリ側が英字のまま（macOS の不具合）という状態から、もう一度押して復帰できるようにする
-        log("  path=reactivate")
-        reactivate(target.id)
-      }
-    }
+    DispatchQueue.main.async { switchInputSource(to: target.id, cjkv: target.cjkv, keyCode: keyCode) }
 
   default:
     pressedKeyCode = nil
   }
 }
 
-func watch() {
-  let types: [CGEventType] = [
-    .flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel,
-  ]
-  let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+/// 飲み込むタップのイベント処理。true を返したイベントは飲み込む
+func handleSwallow(_ type: CGEventType, _ event: CGEvent) -> Bool {
+  switch type {
+  case .tapDisabledByTimeout, .tapDisabledByUserInput:
+    swallowedKeys.removeAll()
+    log("swallow tap disabled (\(type.rawValue)), re-enabling")
+    if let swallowTap { CGEvent.tapEnable(tap: swallowTap, enable: true) }
+    return false
 
-  guard
-    let tap = CGEvent.tapCreate(
+  case .keyUp:
+    let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    return swallowedKeys.remove(keyCode) != nil
+
+  case .keyDown:
+    let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    // ⌘ などとの組み合わせはシステムやアプリのショートカットに任せる
+    guard let id = jisTargets[keyCode],
+      event.flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift])
+    else { return false }
+    swallowedKeys.insert(keyCode)
+    // 押しっぱなしの自動リピートは飲み込むだけ
+    if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+      DispatchQueue.main.async { switchInputSource(to: id, cjkv: id != abcID, keyCode: keyCode) }
+    }
+    return true
+
+  default:
+    return false
+  }
+}
+
+func createTap(swallow: Bool) -> CFMachPort? {
+  let types: [CGEventType] =
+    swallow
+    ? [.keyDown, .keyUp]
+    : [.flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel]
+  let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+  let tap =
+    swallow
+    ? CGEvent.tapCreate(
+      tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+      eventsOfInterest: mask,
+      callback: { _, type, event, _ in
+        handleSwallow(type, event) ? nil : Unmanaged.passUnretained(event)
+      }, userInfo: nil)
+    : CGEvent.tapCreate(
       tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly,
       eventsOfInterest: mask,
       callback: { _, type, event, _ in
         handle(type, event)
         return Unmanaged.passUnretained(event)
       }, userInfo: nil)
-  else {
-    NSLog("TriDog: failed to create event tap")
-    exit(1)
+  guard let tap else { return nil }
+  let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
+  tapSources[tap] = source
+  CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+  CGEvent.tapEnable(tap: tap, enable: true)
+  log("event tap started (swallow=\(swallow))")
+  return tap
+}
+
+func removeTap(_ tap: CFMachPort) {
+  CGEvent.tapEnable(tap: tap, enable: false)
+  CFMachPortInvalidate(tap)
+  if let source = tapSources.removeValue(forKey: tap) {
+    CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+  }
+}
+
+/// defaultTap が、許可があるのに作れなかった。毎秒作り直さないよう、設定を変えるか許可が付け直されるまで試さない
+var swallowUnavailable = false
+var listenFailureLogged = false
+var lastAXTrusted = false
+
+/// 権限と設定に合わせてタップを揃える。足りないときは何もせず、次の呼び出し（1 秒ごと）でまた試す
+func watch() {
+  if eventTap == nil, CGPreflightListenEventAccess() {
+    eventTap = createTap(swallow: false)
+    if eventTap == nil, !listenFailureLogged {
+      log("event tap could not be created")
+      listenFailureLogged = true
+    }
   }
 
-  eventTap = tap
-  log("event tap started")
-  CFRunLoopAddSource(
-    CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
-  CGEvent.tapEnable(tap: tap, enable: true)
+  let trusted = !jisTargets.isEmpty && AXIsProcessTrusted()
+  if trusted, !lastAXTrusted { swallowUnavailable = false }
+  lastAXTrusted = trusted
+  let wantSwallow = trusted && !swallowUnavailable
+  if wantSwallow, swallowTap == nil {
+    swallowTap = createTap(swallow: true)
+    if swallowTap == nil {
+      log("swallow tap could not be created")
+      swallowUnavailable = true
+    }
+  } else if !wantSwallow, let tap = swallowTap {
+    // 接管をやめた、またはアクセシビリティが取り消された（飲み込むタップを残すとキー入力が止まることがある）
+    removeTap(tap)
+    swallowTap = nil
+    log("swallow tap removed")
+    swallowedKeys.removeAll()
+  }
+}
+
+/// 1 秒ごとに権限と入力ソースを見直してタップを合わせる
+var permissionTimer: Timer?
+let launchDate = Date()
+
+func ensureWatching() {
+  watch()
+  guard permissionTimer == nil else { return }
+  permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+    // ログイン直後は他社の入力メソッドがまだ登録されていないことがある。起動後 60 秒の間だけ、保存値の方が多ければ読み直す
+    // （それ以降は入力ソースの変更通知に任せる。削除済みの入力ソースのために毎秒 TIS を呼び続けないように）
+    if Date().timeIntervalSince(launchDate) < 60 {
+      let stored = [eisu, kana].filter { defaults.string(forKey: jisTargetKey($0)) != nil }.count
+      if jisTargets.count < stored { reloadJISTargets() }
+    }
+    watch()
+  }
+  // 入力ソースの追加・削除に追従する（削除された入力ソースへの割り当てでキーを飲み込み続けないように）
+  DistributedNotificationCenter.default().addObserver(
+    forName: Notification.Name(kTISNotifyEnabledKeyboardInputSourcesChanged as String), object: nil,
+    queue: .main
+  ) { _ in
+    reloadJISTargets()
+    watch()
+  }
+}
+
+/// 英数・かな の接管に必要な「アクセシビリティ」を、まだ無ければ求める（システムのダイアログが出る）
+func requestAccessibilityIfNeeded() {
+  guard !jisTargets.isEmpty, !AXIsProcessTrusted() else { return }
+  _ = AXIsProcessTrustedWithOptions(
+    [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
 }
 
 // MARK: - メニュー
@@ -348,6 +499,27 @@ final class MenuHandler: NSObject, NSMenuDelegate {
         to: menu,
         text(zh: "打开「输入监控」设置…", en: "Open Input Monitoring Settings…", ja: "「入力監視」の設定を開く…"),
         #selector(openInputMonitoring), on: false)
+      menu.addItem(.separator())
+    }
+
+    // 英数・かな を接管する設定なのに、アクセシビリティが無くて飲み込めない
+    reloadJISTargets()
+    if eventTap != nil, !jisTargets.isEmpty, swallowTap == nil {
+      addHeader(
+        to: menu,
+        swallowUnavailable
+          ? text(
+            zh: "⚠️ 无法接管 英数/かな 键，请重新选择切换目标或重启本程序",
+            en: "⚠️ Couldn't take over 英数/かな — pick the target again or relaunch",
+            ja: "⚠️ 英数・かな を変更できませんでした。切り替え先を選び直すか、再起動してください")
+          : text(
+            zh: "⚠️ 未获得「辅助功能」权限，英数/かな 键的切换不会生效",
+            en: "⚠️ Accessibility not granted — 英数/かな switching is inactive",
+            ja: "⚠️ 「アクセシビリティ」が許可されていないため、英数・かな での切り替えは無効です"))
+      addItem(
+        to: menu,
+        text(zh: "打开「辅助功能」设置…", en: "Open Accessibility Settings…", ja: "「アクセシビリティ」の設定を開く…"),
+        #selector(openAccessibility), on: false)
       menu.addItem(.separator())
     }
 
@@ -410,6 +582,31 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     for (title, keyCode) in shifts {
       addItem(to: menu, title, #selector(chooseShift), on: abcShift == keyCode, indented: true).tag =
         Int(keyCode)
+    }
+    menu.addItem(.separator())
+
+    // JIS キーボードの 英数・かな。既定は「接管しない」（システムの動作のまま）
+    var choices: [(id: String?, name: String)] = [
+      (nil, text(zh: "不接管（系统默认）", en: "Don't Override (system default)", ja: "変更しない（システムの既定）")),
+      (abcID, text(zh: "英文 (ABC)", en: "English (ABC)", ja: "英語 (ABC)")),
+    ]
+    if isSelectable(japaneseID) {
+      choices.append((japaneseID, text(zh: "日语", en: "Japanese", ja: "日本語")))
+    }
+    choices += methods.map { ($0.id, $0.name) }
+    let jisKeys = [
+      (eisu, text(zh: "JIS「英数」键切换到", en: "JIS 英数 Key Switches To", ja: "JIS「英数」キーの切り替え先")),
+      (kana, text(zh: "JIS「かな」键切换到", en: "JIS かな Key Switches To", ja: "JIS「かな」キーの切り替え先")),
+    ]
+    for (keyCode, header) in jisKeys {
+      addHeader(to: menu, header)
+      for choice in choices {
+        let item = addItem(
+          to: menu, choice.name, #selector(chooseJISTarget), on: jisTargets[keyCode] == choice.id,
+          indented: true)
+        item.tag = Int(keyCode)
+        item.representedObject = choice.id
+      }
     }
     menu.addItem(.separator())
 
@@ -518,6 +715,24 @@ final class MenuHandler: NSObject, NSMenuDelegate {
   @objc func chooseShift(_ sender: NSMenuItem) {
     defaults.set(sender.tag, forKey: abcShiftKey)
   }
+
+  @objc func chooseJISTarget(_ sender: NSMenuItem) {
+    let keyCode = CGKeyCode(sender.tag)
+    defaults.set(sender.representedObject as? String, forKey: jisTargetKey(keyCode))
+    reloadJISTargets()
+    swallowUnavailable = false
+    log("jis targets: \(jisTargets.map { "\($0.key)=\($0.value)" }.sorted())")
+    requestAccessibilityIfNeeded()
+    watch()
+  }
+
+  @objc func openAccessibility() {
+    if let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    {
+      NSWorkspace.shared.open(url)
+    }
+  }
 }
 
 // MARK: - 起動
@@ -558,16 +773,11 @@ if defaults.bool(forKey: hideIconKey), launchedAsLoginItem {
   statusItem.isVisible = true
 }
 
-if CGPreflightListenEventAccess() {
-  watch()
-} else {
-  CGRequestListenEventAccess()
-  Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-    if CGPreflightListenEventAccess() {
-      timer.invalidate()
-      watch()
-    }
-  }
-}
+// 修飾キーの切り替えには「入力監視」、英数・かな の接管にはさらに「アクセシビリティ」が要る。
+// 足りないものを求め、許可され次第動き出す
+reloadJISTargets()
+if !CGPreflightListenEventAccess() { CGRequestListenEventAccess() }
+requestAccessibilityIfNeeded()
+ensureWatching()
 
 app.run()

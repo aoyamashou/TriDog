@@ -8,7 +8,7 @@
 
 A tiny macOS menu bar app: **tap a modifier key to jump straight to a specific input method**. Made for people who type in Chinese, Japanese and English and are tired of cycling with ⌃Space.
 
-> **Scope: this project is for US-layout keyboards only.** JIS (Japanese) keyboards already have dedicated 英数 / かな keys that switch input methods natively, so they don't need it.
+> **Scope:** modifier-tap switching works with any keyboard layout. On JIS (Japanese) keyboards, the 英数 / かな keys next to the space bar can also be set to switch to any input method (since 0.9.0, see below).
 
 | Tap | Switches to |
 |---|---|
@@ -17,6 +17,13 @@ A tiny macOS menu bar app: **tap a modifier key to jump straight to a specific i
 | Right ⇧ or Left ⇧ | English (ABC). **Choose Left ⇧ or Right ⇧ in the menu** (default: Right ⇧) |
 
 Only a clean tap counts: press and release with nothing in between. ⌘C, ⌘-click and typing capitals with Shift never trigger a switch.
+
+## What's new in 0.9.0
+
+- **Customizable 英数 / かな keys on JIS keyboards**: pick a target for each key in the menu (ABC, Japanese, or any enabled input method), for example to make かな jump straight to Chinese. The default is **Don't Override**, which keeps the system behavior.
+  - This needs the **Accessibility** permission as well: TriDog has to stop the key press, otherwise the system's own switching races with TriDog's and the result is unpredictable. TriDog only asks for it once you pick a target for one of the keys.
+  - Combinations with ⌘, ⌃, ⌥ or ⇧ (such as ⌘+かな) are never taken over and still go to the system and apps.
+  - On some external JIS keyboards (for example Logitech MX Mechanical in Mac mode), the カタカナ/ひらがな/ローマ字 key to the right of かな sends nothing to macOS, so TriDog can't use it.
 
 ## What's new in 0.8.0
 
@@ -34,7 +41,7 @@ Only a clean tap counts: press and release with nothing in between. ⌘C, ⌘-cl
    xattr -dr com.apple.quarantine /Applications/TriDog.app
    ```
 
-3. Allow TriDog under **System Settings → Privacy & Security → Input Monitoring**.
+3. Allow TriDog under **System Settings → Privacy & Security → Input Monitoring**. To use the 英数 / かな keys of a JIS keyboard, also allow TriDog under **Accessibility** (you are prompted when you pick a target).
 
 Requires an Apple Silicon Mac running macOS 13 or later.
 
@@ -48,6 +55,7 @@ Click the ♻ icon in the menu bar:
 - **Write Diagnostic Log** (off by default): records each switch to `~/Library/Logs/TriDog.log` (only input source IDs and the frontmost app's ID, never what you type). When on, the menu also shows **Mark: Input Just Went Wrong** and **Show Log in Finder**. Click the mark the moment a problem happens so it can be matched against the log.
 - **Left ⌘ switches to**: choose from your enabled input methods. English keyboard layouts like ABC and Apple's Japanese input method are not listed.
 - **Key for English (ABC)**: Left ⇧ or Right ⇧.
+- **JIS 英数 Key Switches To / JIS かな Key Switches To**: choose **Don't Override (system default)**, ABC, Japanese, or an enabled input method. Without the Accessibility permission, the top of the menu shows a warning and a shortcut to the setting. Once granted, it takes effect within a few seconds, with no restart.
 - **About / Quit**
 
 Menu labels follow your system language (Chinese, Japanese, or English).
