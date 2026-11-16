@@ -322,6 +322,7 @@ func watch() {
   }
 
   eventTap = tap
+  log("event tap started")
   CFRunLoopAddSource(
     CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
   CGEvent.tapEnable(tap: tap, enable: true)
@@ -334,6 +335,21 @@ func watch() {
 final class MenuHandler: NSObject, NSMenuDelegate {
   func menuNeedsUpdate(_ menu: NSMenu) {
     menu.removeAllItems()
+
+    // 事件監視が始まっていない（入力監視の許可が無効）と、どのキーを押しても切り替わらない
+    if eventTap == nil {
+      addHeader(
+        to: menu,
+        text(
+          zh: "⚠️ 未获得「输入监控」权限，按键切换不会生效",
+          en: "⚠️ Input Monitoring not granted — key switching is inactive",
+          ja: "⚠️ 「入力監視」が許可されていないため、キーでの切り替えは無効です"))
+      addItem(
+        to: menu,
+        text(zh: "打开「输入监控」设置…", en: "Open Input Monitoring Settings…", ja: "「入力監視」の設定を開く…"),
+        #selector(openInputMonitoring), on: false)
+      menu.addItem(.separator())
+    }
 
     addItem(
       to: menu, text(
@@ -442,6 +458,14 @@ final class MenuHandler: NSObject, NSMenuDelegate {
 
   @objc func toggleRefocus() {
     defaults.set(!defaults.bool(forKey: refocusKey), forKey: refocusKey)
+  }
+
+  @objc func openInputMonitoring() {
+    if let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+    {
+      NSWorkspace.shared.open(url)
+    }
   }
 
   @objc func toggleLogging() {
