@@ -26,6 +26,8 @@ let defaults = UserDefaults.standard
 let refocusKey = "refocusEnabled"
 /// ABC に切り替える Shift の keyCode。既定は右 Shift
 let abcShiftKey = "abcShift"
+/// メニューバーのアイコンを隠しているか
+let hideIconKey = "hideStatusIcon"
 /// 左 ⌘ で切り替える入力ソースの ID。既定は清歌
 let leftCommandTargetKey = "leftCommandTarget"
 
@@ -129,6 +131,15 @@ func selectableInputMethods() -> [(id: String, name: String)] {
   return result
 }
 
+/// 入力ソースを ABC に退避してから選び直し、入力メソッドを最前面アプリに対して再度有効化させる
+func reactivate(_ id: String) {
+  _ = selectInputSource(abcID)
+  DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(30)) {
+    _ = selectInputSource(id)
+    if defaults.bool(forKey: refocusKey) { bounceFocus() }
+  }
+}
+
 // MARK: - フォーカスの付け替え（CJKV 対策）
 
 /// key になれる 1×1 の透明ウィンドウ
@@ -197,8 +208,14 @@ func handle(_ type: CGEventType, _ event: CGEvent) {
     guard isTap, let target = target(for: keyCode) else { return }
     // タップのコールバック中に TIS を呼ぶとタイムアウトしやすいので、次のループで行う
     DispatchQueue.main.async {
-      if selectInputSource(target.id), target.cjkv, defaults.bool(forKey: refocusKey) {
-        bounceFocus()
+      let switched = selectInputSource(target.id)
+      guard target.cjkv else { return }
+      if switched {
+        if defaults.bool(forKey: refocusKey) { bounceFocus() }
+      } else {
+        // 既に目標の入力ソースになっている。システム上は切り替わっているのに
+        // アプリ側が英字のまま（macOS の不具合）という状態から、もう一度押して復帰できるようにする
+        reactivate(target.id)
       }
     }
 
@@ -250,6 +267,13 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     addItem(
       to: menu, text(zh: "开机自动启动", en: "Launch at Login", ja: "ログイン時に起動"),
       #selector(toggleLaunchAtLogin), on: SMAppService.mainApp.status == .enabled)
+    addItem(
+      to: menu,
+      text(
+        zh: "隐藏菜单栏图标（再次启动本程序即可恢复）",
+        en: "Hide Menu Bar Icon (launch the app again to restore)",
+        ja: "メニューバーのアイコンを隠す（もう一度起動すると再表示）"),
+      #selector(hideStatusIcon), on: false)
     menu.addItem(.separator())
 
     addHeader(to: menu, text(zh: "左 ⌘ 切换到", en: "Left ⌘ Switches To", ja: "左 ⌘ の切り替え先"))
@@ -329,6 +353,11 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     defaults.set(!defaults.bool(forKey: refocusKey), forKey: refocusKey)
   }
 
+  @objc func hideStatusIcon() {
+    defaults.set(true, forKey: hideIconKey)
+    statusItem.isVisible = false
+  }
+
   @objc func toggleLaunchAtLogin() {
     let service = SMAppService.mainApp
     do {
@@ -370,6 +399,28 @@ let menu = NSMenu()
 menu.autoenablesItems = false
 menu.delegate = menuHandler
 statusItem.menu = menu
+
+/// 隠している間にもう一度起動（Finder・Launchpad・`open`）されると、実行中のプロセスに reopen が届くので、アイコンを戻す
+final class AppDelegate: NSObject, NSApplicationDelegate {
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    defaults.set(false, forKey: hideIconKey)
+    statusItem.isVisible = true
+    return false
+  }
+}
+let appDelegate = AppDelegate()
+app.delegate = appDelegate
+
+/// 隠した状態を保つのは、ログイン時の自動起動のときだけ。手動で起動したときは必ず表示する
+let launchedAsLoginItem =
+  NSAppleEventManager.shared().currentAppleEvent?
+  .paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+if defaults.bool(forKey: hideIconKey), launchedAsLoginItem {
+  statusItem.isVisible = false
+} else {
+  defaults.set(false, forKey: hideIconKey)
+  statusItem.isVisible = true
+}
 
 if CGPreflightListenEventAccess() {
   watch()
