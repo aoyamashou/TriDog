@@ -28,6 +28,8 @@ let refocusKey = "refocusEnabled"
 let abcShiftKey = "abcShift"
 /// メニューバーのアイコンを隠しているか
 let hideIconKey = "hideStatusIcon"
+/// 診断ログを書くか。既定はオフ
+let loggingKey = "loggingEnabled"
 /// 左 ⌘ で切り替える入力ソースの ID。既定は清歌
 let leftCommandTargetKey = "leftCommandTarget"
 
@@ -85,6 +87,65 @@ func modifierMask(_ keyCode: CGKeyCode) -> CGEventFlags? {
   }
 }
 
+// MARK: - 診断ログ
+
+let logURL = FileManager.default.homeDirectoryForCurrentUser
+  .appendingPathComponent("Library/Logs/TriDog.log")
+let logFormatter: DateFormatter = {
+  let f = DateFormatter()
+  f.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+  return f
+}()
+
+/// ~/Library/Logs/TriDog.log に 1 行追記する。オフのときは何もしない（force は印を付けるとき用）。
+/// 1 MB を超えたら TriDog.log.old に退避して作り直す
+func log(_ message: @autoclosure () -> String, force: Bool = false) {
+  guard force || defaults.bool(forKey: loggingKey) else { return }
+  let fm = FileManager.default
+  if let size = (try? fm.attributesOfItem(atPath: logURL.path))?[.size] as? Int, size > 1_000_000 {
+    let old = logURL.appendingPathExtension("old")
+    try? fm.removeItem(at: old)
+    try? fm.moveItem(at: logURL, to: old)
+  }
+  let line = "\(logFormatter.string(from: Date())) \(message())\n"
+  guard let data = line.data(using: .utf8) else { return }
+  if let handle = try? FileHandle(forWritingTo: logURL) {
+    handle.seekToEndOfFile()
+    handle.write(data)
+    try? handle.close()
+  } else {
+    try? data.write(to: logURL)
+  }
+}
+
+/// 入力ソース 1 件の要約（ID・種別・モード・選択可否）
+func describe(_ source: TISInputSource) -> String {
+  let id = property(source, kTISPropertyInputSourceID) as String? ?? "?"
+  let type = (property(source, kTISPropertyInputSourceType) as String? ?? "?")
+    .replacingOccurrences(of: "TISType", with: "")
+  let mode = property(source, kTISPropertyInputModeID) as String? ?? "-"
+  let capable = property(source, kTISPropertyInputSourceIsSelectCapable) as Bool? == true
+  return "{id=\(id) type=\(type) mode=\(mode) selectable=\(capable)}"
+}
+
+func currentSourceDescription() -> String {
+  describe(TISCopyCurrentKeyboardInputSource().takeRetainedValue())
+}
+
+func frontmostDescription() -> String {
+  NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+}
+
+/// 切り替えの後、入力ソースが維持されているかを少し遅れて 2 回記録する
+func logSettled(expecting id: String) {
+  guard defaults.bool(forKey: loggingKey) else { return }
+  for ms in [100, 500] {
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+      log("  +\(ms)ms current=\(currentSourceDescription()) expected=\(id) frontmost=\(frontmostDescription())")
+    }
+  }
+}
+
 // MARK: - 入力ソース
 
 func property<T>(_ source: TISInputSource, _ key: CFString) -> T? {
@@ -95,7 +156,10 @@ func property<T>(_ source: TISInputSource, _ key: CFString) -> T? {
 /// id の入力ソースを選ぶ。既に選ばれていれば何もせず false
 func selectInputSource(_ id: String) -> Bool {
   let current = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
-  if property(current, kTISPropertyInputSourceID) as String? == id { return false }
+  if property(current, kTISPropertyInputSourceID) as String? == id {
+    log("select \(id): already current \(describe(current)) -> skipped")
+    return false
+  }
 
   let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
   guard let list = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource],
@@ -103,9 +167,16 @@ func selectInputSource(_ id: String) -> Bool {
     let source = list.first(where: {
       property($0, kTISPropertyInputSourceIsSelectCapable) as Bool? == true
     })
-  else { return false }
+  else {
+    log("select \(id): no selectable source found")
+    return false
+  }
 
-  return TISSelectInputSource(source) == noErr
+  let status = TISSelectInputSource(source)
+  log(
+    "select \(id): from=\(describe(current)) candidates=\(list.map(describe)) picked=\(describe(source)) status=\(status) now=\(currentSourceDescription())"
+  )
+  return status == noErr
 }
 
 /// 左 ⌘ の切り替え先に選べる入力ソース（ID と名前）。
@@ -190,6 +261,7 @@ func handle(_ type: CGEventType, _ event: CGEvent) {
   switch type {
   case .tapDisabledByTimeout, .tapDisabledByUserInput:
     pressedKeyCode = nil
+    log("event tap disabled (\(type.rawValue)), re-enabling")
     if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
 
   case .flagsChanged:
@@ -208,13 +280,19 @@ func handle(_ type: CGEventType, _ event: CGEvent) {
     guard isTap, let target = target(for: keyCode) else { return }
     // タップのコールバック中に TIS を呼ぶとタイムアウトしやすいので、次のループで行う
     DispatchQueue.main.async {
+      log(
+        "key=\(keyCode) target=\(target.id) cjkv=\(target.cjkv) refocus=\(defaults.bool(forKey: refocusKey)) frontmost=\(frontmostDescription()) current=\(currentSourceDescription())"
+      )
       let switched = selectInputSource(target.id)
+      logSettled(expecting: target.id)
       guard target.cjkv else { return }
       if switched {
+        log("  path=switched")
         if defaults.bool(forKey: refocusKey) { bounceFocus() }
       } else {
         // 既に目標の入力ソースになっている。システム上は切り替わっているのに
         // アプリ側が英字のまま（macOS の不具合）という状態から、もう一度押して復帰できるようにする
+        log("  path=reactivate")
         reactivate(target.id)
       }
     }
@@ -274,6 +352,19 @@ final class MenuHandler: NSObject, NSMenuDelegate {
         en: "Hide Menu Bar Icon (launch the app again to restore)",
         ja: "メニューバーのアイコンを隠す（もう一度起動すると再表示）"),
       #selector(hideStatusIcon), on: false)
+    addItem(
+      to: menu,
+      text(zh: "记录诊断日志", en: "Write Diagnostic Log", ja: "診断ログを記録"),
+      #selector(toggleLogging), on: defaults.bool(forKey: loggingKey))
+    if defaults.bool(forKey: loggingKey) {
+      addItem(
+        to: menu,
+        text(zh: "标记：刚才输入异常", en: "Mark: Input Just Went Wrong", ja: "印を付ける：今、入力がおかしい"),
+        #selector(markProblem), on: false, indented: true)
+      addItem(
+        to: menu, text(zh: "在访达中显示日志", en: "Show Log in Finder", ja: "ログを Finder で表示"),
+        #selector(revealLog), on: false, indented: true)
+    }
     menu.addItem(.separator())
 
     addHeader(to: menu, text(zh: "左 ⌘ 切换到", en: "Left ⌘ Switches To", ja: "左 ⌘ の切り替え先"))
@@ -351,6 +442,27 @@ final class MenuHandler: NSObject, NSMenuDelegate {
 
   @objc func toggleRefocus() {
     defaults.set(!defaults.bool(forKey: refocusKey), forKey: refocusKey)
+  }
+
+  @objc func toggleLogging() {
+    let enabled = !defaults.bool(forKey: loggingKey)
+    if enabled {
+      defaults.set(true, forKey: loggingKey)
+      let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+      log("=== logging on, TriDog \(v), macOS \(ProcessInfo.processInfo.operatingSystemVersionString) ===")
+    } else {
+      log("=== logging off ===")
+      defaults.set(false, forKey: loggingKey)
+    }
+  }
+
+  /// 異常に気付いた瞬間に押す。直前のログと照らし合わせるための目印
+  @objc func markProblem() {
+    log("!!! MARK: input wrong. current=\(currentSourceDescription()) frontmost=\(frontmostDescription())", force: true)
+  }
+
+  @objc func revealLog() {
+    NSWorkspace.shared.activateFileViewerSelecting([logURL])
   }
 
   @objc func hideStatusIcon() {
