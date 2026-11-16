@@ -28,6 +28,8 @@ let refocusKey = "refocusEnabled"
 let abcShiftKey = "abcShift"
 /// 左 ⌘ で切り替える入力ソースの ID。既定は清歌
 let leftCommandTargetKey = "leftCommandTarget"
+/// メニューバーのアイコンを隠すか。既定はオフ（表示）
+let hideIconKey = "hideStatusIcon"
 
 /// 左 ⌘ の切り替え先。保存値 → 清歌 → 選べる入力ソースの先頭 の順に、実際に有効なものを使う。
 /// 清歌を入れていない環境や、選んでいた入力ソースを削除した場合でも動くようにする
@@ -234,6 +236,8 @@ func watch() {
 
 // MARK: - メニュー
 
+let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
 /// メニューは開くたびに作り直す（入力ソースの追加・削除をその場で反映するため）。
 /// 選択肢はサブメニューにせず、見出しの下にインデントして並べる
 final class MenuHandler: NSObject, NSMenuDelegate {
@@ -250,6 +254,13 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     addItem(
       to: menu, text(zh: "开机自动启动", en: "Launch at Login", ja: "ログイン時に起動"),
       #selector(toggleLaunchAtLogin), on: SMAppService.mainApp.status == .enabled)
+    addItem(
+      to: menu,
+      text(
+        zh: "隐藏菜单栏图标（再次启动本程序即可显示）",
+        en: "Hide Menu Bar Icon (relaunch the app to show it)",
+        ja: "メニューバーのアイコンを隠す（アプリを再度起動すると表示）"),
+      #selector(hideIcon), on: false)
     menu.addItem(.separator())
 
     addHeader(to: menu, text(zh: "左 ⌘ 切换到", en: "Left ⌘ Switches To", ja: "左 ⌘ の切り替え先"))
@@ -346,6 +357,10 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     }
   }
 
+  @objc func hideIcon() {
+    setStatusIconHidden(true)
+  }
+
   @objc func chooseLeftCommandTarget(_ sender: NSMenuItem) {
     defaults.set(sender.representedObject as? String, forKey: leftCommandTargetKey)
   }
@@ -357,11 +372,26 @@ final class MenuHandler: NSObject, NSMenuDelegate {
 
 // MARK: - 起動
 
+/// 実行中にもう一度アプリを起動する（Finder・Spotlight・`open` など）と reopen イベントが届く。
+/// アイコンを隠している間は、これが再表示の唯一の入口になる
+final class AppDelegate: NSObject, NSApplicationDelegate {
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    setStatusIconHidden(false)
+    return true
+  }
+}
+
+func setStatusIconHidden(_ hidden: Bool) {
+  defaults.set(hidden, forKey: hideIconKey)
+  statusItem.isVisible = !hidden
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
+let appDelegate = AppDelegate()
+app.delegate = appDelegate
 
 let menuHandler = MenuHandler()
-let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 // アプリアイコンと同じリサイクルマーク。テンプレート画像にしてメニューバーの明暗に合わせる
 let statusImage = NSImage(systemSymbolName: "arrow.3.trianglepath", accessibilityDescription: "TriDog")
 statusImage?.isTemplate = true
@@ -370,6 +400,12 @@ let menu = NSMenu()
 menu.autoenablesItems = false
 menu.delegate = menuHandler
 statusItem.menu = menu
+// アイコンを隠したままログイン時起動したときだけ隠したままにする。
+// それ以外の起動（手動起動）は表示に戻す。隠したままだと終了・設定の手段がなくなるため
+if defaults.bool(forKey: hideIconKey), SMAppService.mainApp.status != .enabled {
+  defaults.set(false, forKey: hideIconKey)
+}
+statusItem.isVisible = !defaults.bool(forKey: hideIconKey)
 
 if CGPreflightListenEventAccess() {
   watch()
