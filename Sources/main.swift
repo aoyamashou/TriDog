@@ -448,6 +448,13 @@ final class MenuHandler: NSObject, NSMenuDelegate {
         en: "F1–F12 Key Mapping Settings…",
         ja: "F1〜F12 キーマッピング設定…"),
       #selector(openKeyMappingSettings), on: false)
+    addItem(
+      to: menu,
+      text(
+        zh: "权限检查…",
+        en: "Permission Check…",
+        ja: "権限チェック…"),
+      #selector(openPermissionCheck), on: false)
     menu.addItem(.separator())
 
     addItem(
@@ -577,6 +584,10 @@ final class MenuHandler: NSObject, NSMenuDelegate {
 
   @objc func openKeyMappingSettings() {
     KeyMappingWindowController.shared.show()
+  }
+
+  @objc func openPermissionCheck() {
+    PermissionWindowController.shared.show()
   }
 
   @objc func toggleLogging() {
@@ -884,6 +895,217 @@ final class KeyMappingWindowController: NSObject, NSWindowDelegate {
 
   func windowWillClose(_ notification: Notification) {
     stopRecording()
+  }
+}
+
+// MARK: - 権限チェックパネル
+
+final class PermissionWindowController: NSObject, NSWindowDelegate {
+  static let shared = PermissionWindowController()
+
+  private var window: NSWindow?
+  private var refreshTimer: Timer?
+
+  private var axStatusLabel: NSTextField?
+  private var axActionButton: NSButton?
+  private var listenStatusLabel: NSTextField?
+  private var listenActionButton: NSButton?
+  private var tapStatusLabel: NSTextField?
+
+  func show() {
+    if window == nil {
+      buildWindow()
+    }
+    refreshStatus()
+    startTimer()
+    NSApp.activate(ignoringOtherApps: true)
+    window?.center()
+    window?.makeKeyAndOrderFront(nil)
+  }
+
+  private func buildWindow() {
+    let win = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 470, height: 240),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false)
+    win.title = text(
+      zh: "TriDog 权限检查",
+      en: "TriDog Permission Check",
+      ja: "TriDog 権限チェック")
+    win.isReleasedWhenClosed = false
+    win.delegate = self
+
+    let root = NSStackView()
+    root.orientation = .vertical
+    root.alignment = .leading
+    root.spacing = 14
+    root.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
+    root.translatesAutoresizingMaskIntoConstraints = false
+
+    let intro = NSTextField(
+      wrappingLabelWithString: text(
+        zh: "TriDog 需要以下系统权限以拦截修饰键单击与 F1–F12 重映射：",
+        en: "TriDog requires the following permissions for modifier key switching and F1–F12 remapping:",
+        ja: "TriDog が修飾キー切り替えと F1〜F12 リマップを行うには、以下の権限が必要です："))
+    intro.font = .systemFont(ofSize: 12)
+    intro.textColor = .secondaryLabelColor
+    root.addArrangedSubview(intro)
+
+    let (axRow, axStatus, axBtn) = makeRow(
+      title: text(zh: "辅助功能 (Accessibility)", en: "Accessibility", ja: "アクセシビリティ"),
+      desc: text(zh: "用于拦截并发送 F1–F12 重映射按键", en: "Required to intercept and remap F1–F12", ja: "F1〜F12 の横取りと送信に必要"),
+      buttonTitle: text(zh: "打开设置…", en: "Open Settings…", ja: "設定を開く…"),
+      action: #selector(openAccessibilitySettings))
+    axStatusLabel = axStatus
+    axActionButton = axBtn
+    root.addArrangedSubview(axRow)
+
+    let (listenRow, listenStatus, listenBtn) = makeRow(
+      title: text(zh: "输入监控 (Input Monitoring)", en: "Input Monitoring", ja: "入力監視"),
+      desc: text(zh: "用于监听全局键盘与鼠标事件", en: "Monitors global keyboard and mouse events", ja: "グローバルなキー・マウス入力の監視"),
+      buttonTitle: text(zh: "打开设置…", en: "Open Settings…", ja: "設定を開く…"),
+      action: #selector(openInputMonitoringSettings))
+    listenStatusLabel = listenStatus
+    listenActionButton = listenBtn
+    root.addArrangedSubview(listenRow)
+
+    let (tapRow, tapStatus, _) = makeRow(
+      title: text(zh: "事件监听引擎 (Event Tap)", en: "Event Tap Engine", ja: "イベント監視エンジン"),
+      desc: text(zh: "全局按键拦截与转换当前是否处于运行状态", en: "Whether global key interception is active", ja: "グローバル監視が現在稼働しているか"),
+      buttonTitle: nil,
+      action: nil)
+    tapStatusLabel = tapStatus
+    root.addArrangedSubview(tapRow)
+
+    let footer = NSStackView()
+    footer.orientation = .horizontal
+    footer.alignment = .centerY
+    footer.spacing = 10
+
+    let refreshBtn = NSButton(
+      title: text(zh: "刷新状态", en: "Refresh", ja: "状態を更新"),
+      target: self,
+      action: #selector(onRefreshClicked))
+    refreshBtn.bezelStyle = .rounded
+
+    let tip = NSTextField(
+      labelWithString: text(
+        zh: "在系统设置授权后，状态会自动刷新",
+        en: "Status refreshes automatically after granting access",
+        ja: "システム設定で許可すると状態が自動更新されます"))
+    tip.font = .systemFont(ofSize: 11)
+    tip.textColor = .tertiaryLabelColor
+
+    footer.addArrangedSubview(refreshBtn)
+    footer.addArrangedSubview(tip)
+    root.addArrangedSubview(footer)
+
+    win.contentView = root
+    window = win
+  }
+
+  private func makeRow(
+    title: String, desc: String, buttonTitle: String?, action: Selector?
+  ) -> (NSStackView, NSTextField, NSButton?) {
+    let row = NSStackView()
+    row.orientation = .horizontal
+    row.alignment = .centerY
+    row.spacing = 12
+
+    let textCol = NSStackView()
+    textCol.orientation = .vertical
+    textCol.alignment = .leading
+    textCol.spacing = 2
+    textCol.widthAnchor.constraint(equalToConstant: 230).isActive = true
+
+    let titleLabel = NSTextField(labelWithString: title)
+    titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+    let descLabel = NSTextField(labelWithString: desc)
+    descLabel.font = .systemFont(ofSize: 11)
+    descLabel.textColor = .secondaryLabelColor
+    textCol.addArrangedSubview(titleLabel)
+    textCol.addArrangedSubview(descLabel)
+
+    let statusLabel = NSTextField(labelWithString: "")
+    statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
+    statusLabel.widthAnchor.constraint(equalToConstant: 88).isActive = true
+
+    row.addArrangedSubview(textCol)
+    row.addArrangedSubview(statusLabel)
+
+    var btn: NSButton?
+    if let buttonTitle, let action {
+      let actionBtn = NSButton(title: buttonTitle, target: self, action: action)
+      actionBtn.bezelStyle = .rounded
+      actionBtn.widthAnchor.constraint(equalToConstant: 96).isActive = true
+      row.addArrangedSubview(actionBtn)
+      btn = actionBtn
+    }
+    return (row, statusLabel, btn)
+  }
+
+  @objc private func onRefreshClicked() {
+    refreshStatus()
+  }
+
+  @objc private func openAccessibilitySettings() {
+    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+    _ = AXIsProcessTrustedWithOptions(options)
+    if let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    {
+      NSWorkspace.shared.open(url)
+    }
+  }
+
+  @objc private func openInputMonitoringSettings() {
+    CGRequestListenEventAccess()
+    if let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+    {
+      NSWorkspace.shared.open(url)
+    }
+  }
+
+  private func refreshStatus() {
+    let axGranted = AXIsProcessTrusted()
+    let listenGranted = CGPreflightListenEventAccess()
+
+    if axGranted && eventTap == nil {
+      watch()
+    }
+
+    let tapRunning = eventTap != nil
+
+    axStatusLabel?.stringValue = axGranted
+      ? text(zh: "✅ 已授权", en: "✅ Granted", ja: "✅ 許可済み")
+      : text(zh: "⚠️ 未授权", en: "⚠️ Missing", ja: "⚠️ 未許可")
+    axStatusLabel?.textColor = axGranted ? .systemGreen : .systemOrange
+    axActionButton?.isEnabled = !axGranted
+
+    listenStatusLabel?.stringValue = listenGranted
+      ? text(zh: "✅ 已授权", en: "✅ Granted", ja: "✅ 許可済み")
+      : text(zh: "⚠️ 未授权", en: "⚠️ Missing", ja: "⚠️ 未許可")
+    listenStatusLabel?.textColor = listenGranted ? .systemGreen : .systemOrange
+    listenActionButton?.isEnabled = !listenGranted
+
+    tapStatusLabel?.stringValue = tapRunning
+      ? text(zh: "✅ 运行中", en: "✅ Running", ja: "✅ 稼働中")
+      : text(zh: "❌ 未启动", en: "❌ Inactive", ja: "❌ 停止中")
+    tapStatusLabel?.textColor = tapRunning ? .systemGreen : .systemRed
+  }
+
+  private func startTimer() {
+    refreshTimer?.invalidate()
+    refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+      self?.refreshStatus()
+    }
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    refreshTimer?.invalidate()
+    refreshTimer = nil
   }
 }
 
