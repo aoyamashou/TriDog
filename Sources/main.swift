@@ -56,6 +56,10 @@ let fKeys: [(name: String, keyCode: CGKeyCode)] = [
   ("F10", CGKeyCode(kVK_F10)),
   ("F11", CGKeyCode(kVK_F11)),
   ("F12", CGKeyCode(kVK_F12)),
+  ("Home", CGKeyCode(kVK_Home)),
+  ("End", CGKeyCode(kVK_End)),
+  ("PageUp", CGKeyCode(kVK_PageUp)),
+  ("PageDown", CGKeyCode(kVK_PageDown)),
 ]
 
 let fKeyNameByCode: [CGKeyCode: String] = Dictionary(uniqueKeysWithValues: fKeys.map { ($0.keyCode, $0.name) })
@@ -444,9 +448,9 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     addItem(
       to: menu,
       text(
-        zh: "F1–F12 按键映射设置…",
-        en: "F1–F12 Key Mapping Settings…",
-        ja: "F1〜F12 キーマッピング設定…"),
+        zh: "按键映射设置…",
+        en: "Key Mapping Settings…",
+        ja: "キーマッピング設定…"),
       #selector(openKeyMappingSettings), on: false)
     addItem(
       to: menu,
@@ -747,29 +751,29 @@ final class KeyMappingWindowController: NSObject, NSWindowDelegate {
 
   private func buildWindow() {
     let win = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 460, height: 440),
+      contentRect: NSRect(x: 0, y: 0, width: 500, height: 540),
       styleMask: [.titled, .closable],
       backing: .buffered,
       defer: false)
     win.title = text(
-      zh: "F1–F12 按键映射设置",
-      en: "F1–F12 Key Mapping Settings",
-      ja: "F1〜F12 キーマッピング設定")
+      zh: "按键映射设置",
+      en: "Key Mapping Settings",
+      ja: "キーマッピング設定")
     win.isReleasedWhenClosed = false
     win.delegate = self
 
     let root = NSStackView()
     root.orientation = .vertical
     root.alignment = .leading
-    root.spacing = 10
+    root.spacing = 8
     root.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
     root.translatesAutoresizingMaskIntoConstraints = false
 
     let hint = NSTextField(
       wrappingLabelWithString: text(
-        zh: "仅单独按下 F1–F12（含 Fn+F1–F12）时触发映射；按住 ⌘ / ⌥ / ⌃ / ⇧ 时保留原按键。",
-        en: "Triggers only when F1–F12 (or Fn+F1–F12) is pressed alone. Holding ⌘ / ⌥ / ⌃ / ⇧ passes through.",
-        ja: "F1〜F12 単体押し（Fn+F1〜F12 を含む）のみ変換します。⌘ / ⌥ / ⌃ / ⇧ 併用時はそのまま送信します。"))
+        zh: "仅单独按下 F1–F12 / Home / End / PageUp / PageDown（含 Fn 组合）时触发映射；按住 ⌘ / ⌥ / ⌃ / ⇧ 时保留原按键。",
+        en: "Triggers only when F1–F12 / Home / End / PageUp / PageDown (or with Fn) is pressed alone. Holding ⌘ / ⌥ / ⌃ / ⇧ passes through.",
+        ja: "F1〜F12 / Home / End / PageUp / PageDown 単体押し（Fn 併用含む）のみ変換します。⌘ / ⌥ / ⌃ / ⇧ 併用時はそのまま送信します。"))
     hint.font = .systemFont(ofSize: 12)
     hint.textColor = .secondaryLabelColor
     root.addArrangedSubview(hint)
@@ -786,7 +790,7 @@ final class KeyMappingWindowController: NSObject, NSWindowDelegate {
 
       let label = NSTextField(labelWithString: fName)
       label.font = .monospacedSystemFont(ofSize: 13, weight: .medium)
-      label.widthAnchor.constraint(equalToConstant: 36).isActive = true
+      label.widthAnchor.constraint(equalToConstant: 76).isActive = true
 
       let recorder = NSButton(title: "", target: self, action: #selector(toggleRecord(_:)))
       recorder.bezelStyle = .rounded
