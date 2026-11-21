@@ -32,6 +32,49 @@ let hideIconKey = "hideStatusIcon"
 let loggingKey = "loggingEnabled"
 /// 左 ⌘ で切り替える入力ソースの ID。既定は清歌
 let leftCommandTargetKey = "leftCommandTarget"
+/// F1〜F12 のカスタムキーマッピング設定
+let fKeyMappingsKey = "fKeyMappings"
+
+// MARK: - F1〜F12 キーマッピング設定
+
+struct KeyCombo: Codable, Equatable {
+  var keyCode: UInt16
+  var modifiers: UInt64
+  var enabled: Bool
+}
+
+let fKeys: [(name: String, keyCode: CGKeyCode)] = [
+  ("F1", CGKeyCode(kVK_F1)),
+  ("F2", CGKeyCode(kVK_F2)),
+  ("F3", CGKeyCode(kVK_F3)),
+  ("F4", CGKeyCode(kVK_F4)),
+  ("F5", CGKeyCode(kVK_F5)),
+  ("F6", CGKeyCode(kVK_F6)),
+  ("F7", CGKeyCode(kVK_F7)),
+  ("F8", CGKeyCode(kVK_F8)),
+  ("F9", CGKeyCode(kVK_F9)),
+  ("F10", CGKeyCode(kVK_F10)),
+  ("F11", CGKeyCode(kVK_F11)),
+  ("F12", CGKeyCode(kVK_F12)),
+]
+
+let fKeyNameByCode: [CGKeyCode: String] = Dictionary(uniqueKeysWithValues: fKeys.map { ($0.keyCode, $0.name) })
+
+var fKeyMappings: [String: KeyCombo] = {
+  guard let data = defaults.data(forKey: fKeyMappingsKey),
+    let decoded = try? JSONDecoder().decode([String: KeyCombo].self, from: data)
+  else { return [:] }
+  return decoded
+}()
+
+func saveFKeyMappings() {
+  if let data = try? JSONEncoder().encode(fKeyMappings) {
+    defaults.set(data, forKey: fKeyMappingsKey)
+  }
+}
+
+/// ショートカット録音中は F1〜F12 のリマップを一時停止する
+var isRecordingShortcut = false
 
 /// 左 ⌘ の切り替え先。保存値 → 清歌 → 選べる入力ソースの先頭 の順に、実際に有効なものを使う。
 /// 清歌を入れていない環境や、選んでいた入力ソースを削除した場合でも動くようにする
@@ -251,33 +294,75 @@ func bounceFocus() {
   }
 }
 
-// MARK: - 修飾キー単体押しの検出
+// MARK: - 修飾キー単体押し・F1〜F12 リマップの検出
 
 var eventTap: CFMachPort?
 /// 押されたまま他の操作が無い修飾キー
 var pressedKeyCode: CGKeyCode?
+/// 現在押し下げ中でリマップ済みの F キー（keyUp を確実にペアで送るため、押下時のターゲットを保持する）
+var activeRemappedKeys: [CGKeyCode: KeyCombo] = [:]
+/// 自前で送出した合成イベントを識別し、eventTap の無限ループを防ぐタグ
+let syntheticEventTag: Int64 = 0x5452_4447
+let relevantModifierMask: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
 
-func handle(_ type: CGEventType, _ event: CGEvent) {
+func postSyntheticKey(_ combo: KeyCombo, keyDown: Bool) {
+  let source = CGEventSource(stateID: .hidSystemState)
+  guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(combo.keyCode), keyDown: keyDown)
+  else { return }
+  event.flags = CGEventFlags(rawValue: combo.modifiers)
+  event.setIntegerValueField(.eventSourceUserData, value: syntheticEventTag)
+  event.post(tap: .cghidEventTap)
+}
+
+func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+  if event.getIntegerValueField(.eventSourceUserData) == syntheticEventTag {
+    return Unmanaged.passUnretained(event)
+  }
+
   switch type {
   case .tapDisabledByTimeout, .tapDisabledByUserInput:
     pressedKeyCode = nil
+    activeRemappedKeys.removeAll()
     log("event tap disabled (\(type.rawValue)), re-enabling")
     if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+
+  case .keyDown:
+    pressedKeyCode = nil
+    let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    guard !isRecordingShortcut, let fName = fKeyNameByCode[keyCode] else { break }
+
+    let activeMods = event.flags.intersection(relevantModifierMask)
+    if let combo = fKeyMappings[fName], combo.enabled, activeMods.isEmpty {
+      let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+      if !isRepeat {
+        activeRemappedKeys[keyCode] = combo
+        log("remap \(fName) -> \(formatKeyCombo(combo))")
+      }
+      postSyntheticKey(combo, keyDown: true)
+      return nil
+    }
+
+  case .keyUp:
+    let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    if let combo = activeRemappedKeys.removeValue(forKey: keyCode) {
+      postSyntheticKey(combo, keyDown: false)
+      return nil
+    }
 
   case .flagsChanged:
     let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
     guard let mask = modifierMask(keyCode) else {
       pressedKeyCode = nil
-      return
+      return Unmanaged.passUnretained(event)
     }
     if event.flags.contains(mask) {
       // 別の修飾キーを押している最中なら組み合わせ操作とみなす
       pressedKeyCode = pressedKeyCode == nil ? keyCode : nil
-      return
+      return Unmanaged.passUnretained(event)
     }
     let isTap = pressedKeyCode == keyCode
     pressedKeyCode = nil
-    guard isTap, let target = target(for: keyCode) else { return }
+    guard isTap, let target = target(for: keyCode) else { return Unmanaged.passUnretained(event) }
     // タップのコールバック中に TIS を呼ぶとタイムアウトしやすいので、次のループで行う
     DispatchQueue.main.async {
       log(
@@ -300,25 +385,26 @@ func handle(_ type: CGEventType, _ event: CGEvent) {
   default:
     pressedKeyCode = nil
   }
+
+  return Unmanaged.passUnretained(event)
 }
 
 func watch() {
   let types: [CGEventType] = [
-    .flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel,
+    .flagsChanged, .keyDown, .keyUp, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel,
   ]
   let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
 
   guard
     let tap = CGEvent.tapCreate(
-      tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly,
+      tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
       eventsOfInterest: mask,
       callback: { _, type, event, _ in
         handle(type, event)
-        return Unmanaged.passUnretained(event)
       }, userInfo: nil)
   else {
     NSLog("TriDog: failed to create event tap")
-    exit(1)
+    return
   }
 
   eventTap = tap
@@ -336,20 +422,33 @@ final class MenuHandler: NSObject, NSMenuDelegate {
   func menuNeedsUpdate(_ menu: NSMenu) {
     menu.removeAllItems()
 
-    // 事件監視が始まっていない（入力監視の許可が無効）と、どのキーを押しても切り替わらない
+    // 事件監視が始まっていない（補助機能・入力監視の許可が無効）と、キーの切り替え・リマップは動かない
     if eventTap == nil {
       addHeader(
         to: menu,
         text(
-          zh: "⚠️ 未获得「输入监控」权限，按键切换不会生效",
-          en: "⚠️ Input Monitoring not granted — key switching is inactive",
-          ja: "⚠️ 「入力監視」が許可されていないため、キーでの切り替えは無効です"))
+          zh: "⚠️ 未获得「辅助功能」权限，按键功能暂未生效",
+          en: "⚠️ Accessibility not granted — key features are inactive",
+          ja: "⚠️ 「アクセシビリティ」が未許可のため、キー機能は無効です"))
+      addItem(
+        to: menu,
+        text(zh: "打开「辅助功能」设置…", en: "Open Accessibility Settings…", ja: "「アクセシビリティ」設定を開く…"),
+        #selector(openAccessibility), on: false)
       addItem(
         to: menu,
         text(zh: "打开「输入监控」设置…", en: "Open Input Monitoring Settings…", ja: "「入力監視」の設定を開く…"),
         #selector(openInputMonitoring), on: false)
       menu.addItem(.separator())
     }
+
+    addItem(
+      to: menu,
+      text(
+        zh: "F1–F12 按键映射设置…",
+        en: "F1–F12 Key Mapping Settings…",
+        ja: "F1〜F12 キーマッピング設定…"),
+      #selector(openKeyMappingSettings), on: false)
+    menu.addItem(.separator())
 
     addItem(
       to: menu, text(
@@ -460,12 +559,24 @@ final class MenuHandler: NSObject, NSMenuDelegate {
     defaults.set(!defaults.bool(forKey: refocusKey), forKey: refocusKey)
   }
 
+  @objc func openAccessibility() {
+    if let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    {
+      NSWorkspace.shared.open(url)
+    }
+  }
+
   @objc func openInputMonitoring() {
     if let url = URL(
       string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
     {
       NSWorkspace.shared.open(url)
     }
+  }
+
+  @objc func openKeyMappingSettings() {
+    KeyMappingWindowController.shared.show()
   }
 
   @objc func toggleLogging() {
@@ -520,6 +631,262 @@ final class MenuHandler: NSObject, NSMenuDelegate {
   }
 }
 
+// MARK: - キー表記・設定ウィンドウ
+
+let specialKeyNames: [UInt16: String] = [
+  UInt16(kVK_Return): "↩",
+  UInt16(kVK_Tab): "⇥",
+  UInt16(kVK_Space): "Space",
+  UInt16(kVK_Delete): "⌫",
+  UInt16(kVK_Escape): "⎋",
+  UInt16(kVK_ForwardDelete): "⌦",
+  UInt16(kVK_UpArrow): "↑",
+  UInt16(kVK_DownArrow): "↓",
+  UInt16(kVK_LeftArrow): "←",
+  UInt16(kVK_RightArrow): "→",
+  UInt16(kVK_Home): "↖",
+  UInt16(kVK_End): "↘",
+  UInt16(kVK_PageUp): "⇞",
+  UInt16(kVK_PageDown): "⇟",
+  UInt16(kVK_F1): "F1",
+  UInt16(kVK_F2): "F2",
+  UInt16(kVK_F3): "F3",
+  UInt16(kVK_F4): "F4",
+  UInt16(kVK_F5): "F5",
+  UInt16(kVK_F6): "F6",
+  UInt16(kVK_F7): "F7",
+  UInt16(kVK_F8): "F8",
+  UInt16(kVK_F9): "F9",
+  UInt16(kVK_F10): "F10",
+  UInt16(kVK_F11): "F11",
+  UInt16(kVK_F12): "F12",
+  UInt16(kVK_F13): "F13",
+  UInt16(kVK_F14): "F14",
+  UInt16(kVK_F15): "F15",
+  UInt16(kVK_F16): "F16",
+  UInt16(kVK_F17): "F17",
+  UInt16(kVK_F18): "F18",
+  UInt16(kVK_F19): "F19",
+  UInt16(kVK_F20): "F20",
+]
+
+func keyName(for keyCode: UInt16) -> String {
+  if let special = specialKeyNames[keyCode] { return special }
+  if let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
+    let ptr = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+  {
+    let data = Unmanaged<CFData>.fromOpaque(ptr).takeUnretainedValue() as Data
+    var deadKeyState: UInt32 = 0
+    var chars = [UniChar](repeating: 0, count: 4)
+    var length = 0
+    let status = data.withUnsafeBytes { rawPtr -> OSStatus in
+      guard let layout = rawPtr.bindMemory(to: UCKeyboardLayout.self).baseAddress else {
+        return OSStatus(paramErr)
+      }
+      return UCKeyTranslate(
+        layout, keyCode, UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
+        OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeyState, chars.count, &length, &chars)
+    }
+    if status == noErr, length > 0 {
+      let str = String(utf16CodeUnits: chars, count: length).trimmingCharacters(in: .whitespacesAndNewlines)
+      if !str.isEmpty { return str.uppercased() }
+    }
+  }
+  return "Key(\(keyCode))"
+}
+
+func formatKeyCombo(_ combo: KeyCombo) -> String {
+  let flags = CGEventFlags(rawValue: combo.modifiers)
+  var prefix = ""
+  if flags.contains(.maskControl) { prefix += "⌃" }
+  if flags.contains(.maskAlternate) { prefix += "⌥" }
+  if flags.contains(.maskShift) { prefix += "⇧" }
+  if flags.contains(.maskCommand) { prefix += "⌘" }
+  return prefix + keyName(for: combo.keyCode)
+}
+
+func cgFlags(from modifierFlags: NSEvent.ModifierFlags) -> CGEventFlags {
+  var result = CGEventFlags()
+  if modifierFlags.contains(.control) { result.insert(.maskControl) }
+  if modifierFlags.contains(.option) { result.insert(.maskAlternate) }
+  if modifierFlags.contains(.shift) { result.insert(.maskShift) }
+  if modifierFlags.contains(.command) { result.insert(.maskCommand) }
+  return result
+}
+
+final class KeyMappingWindowController: NSObject, NSWindowDelegate {
+  static let shared = KeyMappingWindowController()
+
+  private var window: NSWindow?
+  private var checkboxes: [String: NSButton] = [:]
+  private var recorderButtons: [String: NSButton] = [:]
+  private var clearButtons: [String: NSButton] = [:]
+  private var recordingFName: String?
+  private var localMonitor: Any?
+
+  func show() {
+    if window == nil {
+      buildWindow()
+    }
+    refreshRows()
+    NSApp.activate(ignoringOtherApps: true)
+    window?.center()
+    window?.makeKeyAndOrderFront(nil)
+  }
+
+  private func buildWindow() {
+    let win = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 460, height: 440),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false)
+    win.title = text(
+      zh: "F1–F12 按键映射设置",
+      en: "F1–F12 Key Mapping Settings",
+      ja: "F1〜F12 キーマッピング設定")
+    win.isReleasedWhenClosed = false
+    win.delegate = self
+
+    let root = NSStackView()
+    root.orientation = .vertical
+    root.alignment = .leading
+    root.spacing = 10
+    root.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
+    root.translatesAutoresizingMaskIntoConstraints = false
+
+    let hint = NSTextField(
+      wrappingLabelWithString: text(
+        zh: "仅单独按下 F1–F12（含 Fn+F1–F12）时触发映射；按住 ⌘ / ⌥ / ⌃ / ⇧ 时保留原按键。",
+        en: "Triggers only when F1–F12 (or Fn+F1–F12) is pressed alone. Holding ⌘ / ⌥ / ⌃ / ⇧ passes through.",
+        ja: "F1〜F12 単体押し（Fn+F1〜F12 を含む）のみ変換します。⌘ / ⌥ / ⌃ / ⇧ 併用時はそのまま送信します。"))
+    hint.font = .systemFont(ofSize: 12)
+    hint.textColor = .secondaryLabelColor
+    root.addArrangedSubview(hint)
+
+    for (fName, _) in fKeys {
+      let row = NSStackView()
+      row.orientation = .horizontal
+      row.alignment = .centerY
+      row.spacing = 10
+
+      let toggle = NSButton(checkboxWithTitle: "", target: self, action: #selector(toggleMapping(_:)))
+      toggle.identifier = NSUserInterfaceItemIdentifier(fName)
+      toggle.widthAnchor.constraint(equalToConstant: 20).isActive = true
+
+      let label = NSTextField(labelWithString: fName)
+      label.font = .monospacedSystemFont(ofSize: 13, weight: .medium)
+      label.widthAnchor.constraint(equalToConstant: 36).isActive = true
+
+      let recorder = NSButton(title: "", target: self, action: #selector(toggleRecord(_:)))
+      recorder.bezelStyle = .rounded
+      recorder.identifier = NSUserInterfaceItemIdentifier(fName)
+      recorder.widthAnchor.constraint(greaterThanOrEqualToConstant: 250).isActive = true
+
+      let clear = NSButton(
+        title: text(zh: "清除", en: "Clear", ja: "消去"),
+        target: self,
+        action: #selector(clearMapping(_:)))
+      clear.bezelStyle = .rounded
+      clear.identifier = NSUserInterfaceItemIdentifier(fName)
+      clear.widthAnchor.constraint(equalToConstant: 64).isActive = true
+
+      row.addArrangedSubview(toggle)
+      row.addArrangedSubview(label)
+      row.addArrangedSubview(recorder)
+      row.addArrangedSubview(clear)
+
+      checkboxes[fName] = toggle
+      recorderButtons[fName] = recorder
+      clearButtons[fName] = clear
+      root.addArrangedSubview(row)
+    }
+
+    win.contentView = root
+    window = win
+  }
+
+  private func refreshRows() {
+    for (fName, _) in fKeys {
+      let combo = fKeyMappings[fName]
+      let toggle = checkboxes[fName]
+      let recorder = recorderButtons[fName]
+      let clear = clearButtons[fName]
+
+      if recordingFName == fName {
+        recorder?.title = text(
+          zh: "请按下快捷键…（再次点击取消）",
+          en: "Press shortcut… (click to cancel)",
+          ja: "ショートカットを入力…（再クリックで取消）")
+      } else if let combo {
+        recorder?.title = formatKeyCombo(combo)
+      } else {
+        recorder?.title = text(zh: "点击设置快捷键", en: "Click to set shortcut", ja: "クリックして設定")
+      }
+
+      toggle?.isEnabled = combo != nil
+      toggle?.state = (combo?.enabled == true) ? .on : .off
+      clear?.isEnabled = combo != nil
+    }
+  }
+
+  @objc private func toggleMapping(_ sender: NSButton) {
+    guard let fName = sender.identifier?.rawValue, var combo = fKeyMappings[fName] else { return }
+    combo.enabled = sender.state == .on
+    fKeyMappings[fName] = combo
+    saveFKeyMappings()
+    refreshRows()
+  }
+
+  @objc private func clearMapping(_ sender: NSButton) {
+    guard let fName = sender.identifier?.rawValue else { return }
+    if recordingFName == fName { stopRecording() }
+    fKeyMappings.removeValue(forKey: fName)
+    saveFKeyMappings()
+    refreshRows()
+  }
+
+  @objc private func toggleRecord(_ sender: NSButton) {
+    guard let fName = sender.identifier?.rawValue else { return }
+    if recordingFName == fName {
+      stopRecording()
+      refreshRows()
+      return
+    }
+    startRecording(for: fName)
+  }
+
+  private func startRecording(for fName: String) {
+    stopRecording()
+    recordingFName = fName
+    isRecordingShortcut = true
+    refreshRows()
+
+    localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      guard let self, let targetFName = self.recordingFName else { return event }
+      let flags = cgFlags(from: event.modifierFlags)
+      let combo = KeyCombo(keyCode: event.keyCode, modifiers: flags.rawValue, enabled: true)
+      fKeyMappings[targetFName] = combo
+      saveFKeyMappings()
+      self.stopRecording()
+      self.refreshRows()
+      return nil
+    }
+  }
+
+  private func stopRecording() {
+    if let monitor = localMonitor {
+      NSEvent.removeMonitor(monitor)
+      localMonitor = nil
+    }
+    recordingFName = nil
+    isRecordingShortcut = false
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    stopRecording()
+  }
+}
+
 // MARK: - 起動
 
 let app = NSApplication.shared
@@ -558,12 +925,13 @@ if defaults.bool(forKey: hideIconKey), launchedAsLoginItem {
   statusItem.isVisible = true
 }
 
-if CGPreflightListenEventAccess() {
+if AXIsProcessTrusted() {
   watch()
 } else {
-  CGRequestListenEventAccess()
+  let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+  _ = AXIsProcessTrustedWithOptions(options)
   Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-    if CGPreflightListenEventAccess() {
+    if AXIsProcessTrusted() {
       timer.invalidate()
       watch()
     }
